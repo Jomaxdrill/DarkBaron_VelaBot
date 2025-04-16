@@ -1,21 +1,63 @@
-
-
 import cv2
 import numpy as np
+CAMERA_MAIN_RESOLUTION = (900,780)
 
-LOWER_GREEN = np.array([50, 210, 35]) #50,100,100
-UPPER_GREEN = np.array([100, 255, 255]) #70,255,255
+#TODO: TUNE THRESHOLDS FOR RED,GREEN & BLUE
+#GREEN
+LOWER_GREEN = np.array([45, 60, 165])#145
+UPPER_GREEN = np.array([70, 255, 255])
+#RED
+LOWER_RED = np.array([0, 145, 75])
+UPPER_RED = np.array([5, 255, 255])
+#BLUE
+LOWER_BLUE = np.array([70, 60, 95])
+UPPER_BLUE = np.array([120, 255, 255])
+
+#
+FONT = cv2.FONT_HERSHEY_PLAIN
+#
+PIXEL_ANGLE = 0.0616 #angle in degrees that represents a pixel movement
+CENTER_X_IMAGE = int(CAMERA_MAIN_RESOLUTION[0]//2)
+BLOCK_COLORS = {
+	'green':
+		{
+			'lower': LOWER_GREEN,
+			'upper': UPPER_GREEN
+		},
+	'red':
+		{
+			'lower': LOWER_RED,
+			'upper': UPPER_RED
+		},
+	'blue':
+		{
+			'lower': LOWER_BLUE,
+			'upper': UPPER_BLUE
+		}
+}
+
 #TODO: IMPROVE THE THRESHOLDS FOR ARROW
 LOWER_GREEN_ARROW = np.array([75, 95, 60]) #50,100,100
 UPPER_GREEN_ARROW = np.array([95, 255, 220]) #70,255,255
+
+#COLORS FOR CONTOURS
+CIRCLE_COLOR = (255, 255, 0)
+CIRCLE_BORDER = 5
+RECT_COLOR= (0, 0, 255)
+RECT_BORDER = 2
+GENERAL = (255, 0, 0)
+GENERAL_BORDER = 3
+
+
+####
 GAUSS_KERNEL =  (9,9)
-MEDIAN_BLUR_KERNEL = 3
+MEDIAN_BLUR_KERNEL = 5
 BLOCK_SIZE = 5
 APERTURE_SIZE = 7 #sobel kernel 7x7
 FREE_K_SIZE = 0.05
 UNITARY_VECTOR = [1,0]
 FONT1 = cv2.FONT_HERSHEY_PLAIN
-def convert_rgb_to_hsv(image):
+def convert_bgr_to_hsv(image):
 	return cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
 
@@ -35,12 +77,13 @@ def combine_stack(*images):
 
 def get_contours(image):
 	contours, _ = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+	print(f'contours found: {len(contours)}')
 	return contours
 
 def draw_contours(image, contours):
-	return cv2.drawContours(image, contours, 5, (255, 0, 0), 3)
+	return cv2.drawContours(image, contours, -1, GENERAL,GENERAL_BORDER)
 
-def get_info_contour(contours):
+def get_contour_circle(contours):
 	#calculate moments
 	#moments = cv2.Momments(contours[0])
 	#get center of the contour
@@ -49,10 +92,22 @@ def get_info_contour(contours):
 	(center_x,center_y), radius = cv2.minEnclosingCircle(contours[0])
 	return (center_x, center_y, radius)
 
+def get_contour_box(contour):
+	if not len(contour):
+		return (0,0,0,0)
+	left_pos_x,left_pos_y,width,height = cv2.boundingRect(contour)
+	return (left_pos_x,left_pos_y,width,height)
+
+
+def draw_min_enclosing_rectangle(image, contour):
+	#info rectangle
+	left_pos_x,left_pos_y,width,height = contour
+	return cv2.rectangle(image,(left_pos_x,left_pos_y),(left_pos_x+width,left_pos_y+height),RECT_COLOR,RECT_BORDER)
+
 def draw_min_enclosing_circle(image, contour):
-	#center circle
-	cv2.circle(image, (int(contour[0]), int(contour[1])), 10, (0,0, 255), -1)
-	return cv2.circle(image, (int(contour[0]), int(contour[1])), int(contour[2]), (255,0, 255), 5)
+	#inner circle
+	#cv2.circle(image, (int(contour[0]), int(contour[1])), CIRCLE_BORDER, CIRCLE_COLOR, -1)
+	return cv2.circle(image, (int(contour[0]), int(contour[1])), int(contour[2]), CIRCLE_COLOR, CIRCLE_BORDER)
 
 def convert_bgr_to_hsv(image):
 	return cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -116,72 +171,49 @@ def get_orientation(tip,contours):
 	#*determine its cuadrant and hence a tolerance to determine if it's up,down,left or right
 	center,_,_= bounded_rectangle_rotate(contours)
 	vector_direction = tip-center #hed of arrow must be tip
-	#* get the angle via calculating the dot product
+	#* get the angle via calculating the dot product or trigonomrtry
 	# print(f'vector direction is {vector_direction}')
-	angle = np.arctan2(vector_direction[1], vector_direction[0])
-	#TODO: IMPROVE THE CONDITION
-	if angle <= 0:
-		return 'UP'
-		# angle = 2*np.pi - angle
-	angle = np.degrees(angle)
-	#determine direction		
-	if (angle > 315 and angle <=360) or angle <= 45:
-		return 'RIGHT'
-	elif angle > 45 and angle <= 135:
-		return 'DOWN'
-	elif angle > 135 and angle <= 225:
-		return 'LEFT'
-	# elif angle > 225 and angle <= 315:
-	# 	return 'UP'
-	else:
-		return '...'
+	return np.arctan2(vector_direction[1], vector_direction[0])
 
-def show_features_in_gray(image_gray,features):
-	image_features = cv2.cvtColor(image_gray, cv2.COLOR_GRAY2RGB)
-	for i in features:
-		x,y = i.ravel()
-		cv2.circle(image_features,(x,y),3,255,-1)
-	return image_features
-def show_features_in_color(image_rgb,features):
-	image_features = image_rgb.copy()
-	for i in features:
-		x,y = i.ravel()
-		cv2.circle(image_features,(x,y),3,255,-1)
-	return image_features
-
-def add_text(image, text):
-	return cv2.putText(image,text,(30,30),FONT1,2,(0,255,255),4)
-
-def detect_green(image):
-	hsv_image = convert_rgb_to_hsv(image)
-	mask_hsv = create_hsv_mask(hsv_image,LOWER_GREEN, UPPER_GREEN)
+def find_block(image, color):
+	hsv_image = convert_bgr_to_hsv(image)
+	mask_hsv = create_hsv_mask(hsv_image,BLOCK_COLORS[color]['lower'], BLOCK_COLORS[color]['upper'])
 	blurry_mask = median_blurry_filter(mask_hsv)
 	contours = get_contours(blurry_mask)
-	info_contour = get_info_contour(contours)
-	image_green_detected = draw_min_enclosing_circle(image, info_contour)
-	return image_green_detected
-
-def detect_arrow(image):
-	hsv_image = convert_bgr_to_hsv(image)
-	mask_hsv = create_hsv_mask(hsv_image,LOWER_GREEN_ARROW, UPPER_GREEN_ARROW)
-	blurry_mask = blurry_image(mask_hsv)
-	median_blurry = median_blurry_filter(blurry_mask)
-	features_image = get_features(median_blurry)
-	if features_image is None:
-		#print('No tip arrow found')
-		return image
-	tip_arrow = find_tip_arrow(features_image)
-	if tip_arrow is None:
-		#print('No tip arrow found')
-		return image
-	orientation_arrow = get_orientation(tip_arrow, features_image)
-	contours_original_image = show_features_in_color(image, features_image)
-	return add_text(contours_original_image, f'{orientation_arrow}')
-
-# def define_orientation(center,tip):
-#     if center[0]
+	print(f'contours found: {len(contours)}')
+	info_contours = []
+	for cnt in contours:
+		info_cnt = get_contour_box(cnt)
+		info_contours.append(info_cnt)
+	image_to_draw = image.copy()
+	for inf_cnt in info_contours:
+		image_to_draw = draw_min_enclosing_rectangle(image_to_draw, inf_cnt)
+	# image_block_detected = draw_min_enclosing_rectangle(image, info_contour)
+	# image_contours = draw_contours(image, contours)
+	return image_to_draw, info_contours
 
 
-def detect_corners(image_gray, num_corners):
-    return cv2.goodFeaturesToTrack(image_gray,
-                                   num_corners,0.01,10)
+def center_area_aspect_ratio(contour):
+	left_pos_x,left_pos_y,width,height = contour
+	#* get the area of the rectangle that holds the contour
+	area = width * height
+	aspect_ratio = float(width/height)
+	#* get center of the rectangle
+	center_x = int(width//2)+ left_pos_x
+	center_y = int(height//2) + left_pos_y
+	center = (center_x,center_y)
+	return area, aspect_ratio,center
+
+#get the angle in degrees from the center of the rectangle to the center of the image
+def angle_block_gripper_by(center_block):
+	return (CENTER_X_IMAGE - center_block[0]) * PIXEL_ANGLE
+
+def verify_gripper_by(state):
+    pass
+
+def distance_to_block_by(area):
+	aprox_distance = -0.002015*area + 69.156
+	# if area > 42500:
+	# 	aprox_distance = area
+	return aprox_distance
+
