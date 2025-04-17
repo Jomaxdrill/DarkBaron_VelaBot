@@ -4,6 +4,7 @@ import serial
 import time
 
 def init_gpio():
+	gpio.cleanup()
 	print('init gpio raspberry pi 4')
 	gpio.setmode(gpio.BOARD)
 	#*setup motors

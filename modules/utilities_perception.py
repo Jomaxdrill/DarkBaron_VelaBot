@@ -4,14 +4,14 @@ CAMERA_MAIN_RESOLUTION = (900,780)
 
 #TODO: TUNE THRESHOLDS FOR RED,GREEN & BLUE
 #GREEN
-LOWER_GREEN = np.array([45, 60, 165])#145
+LOWER_GREEN = np.array([45, 60, 155])#145
 UPPER_GREEN = np.array([70, 255, 255])
 #RED
-LOWER_RED = np.array([0, 145, 75])
+LOWER_RED = np.array([0, 145, 155])
 UPPER_RED = np.array([5, 255, 255])
 #BLUE
-LOWER_BLUE = np.array([70, 60, 95])
-UPPER_BLUE = np.array([120, 255, 255])
+LOWER_BLUE = np.array([80, 65, 155])
+UPPER_BLUE = np.array([150, 255, 255])
 
 #
 FONT = cv2.FONT_HERSHEY_PLAIN
@@ -51,12 +51,23 @@ GENERAL_BORDER = 3
 
 ####
 GAUSS_KERNEL =  (9,9)
-MEDIAN_BLUR_KERNEL = 5
+MEDIAN_BLUR_KERNEL = 7
 BLOCK_SIZE = 5
 APERTURE_SIZE = 7 #sobel kernel 7x7
 FREE_K_SIZE = 0.05
 UNITARY_VECTOR = [1,0]
 FONT1 = cv2.FONT_HERSHEY_PLAIN
+
+#LOOK UP TABLE FOR DEPTH ESTIMATION
+# Lookup table data (area in cm², distance in cm)
+DISTANCES_Y = np.array([67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 
+                        39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16])
+AREAS_X = np.array([2400, 2542, 2583, 2646, 2688, 2925, 2970, 2992, 3220, 3337, 3456, 3577, 3626, 3675, 3850, 3978, 4240, 4374, 4510,
+                    4704, 4902, 5192, 5310, 5460, 5828, 6048, 6336, 6666, 7072, 7314, 7776, 8103, 8562, 9009, 9360, 10044, 10668, 
+                    10920, 12193, 13080, 13630, 14453, 15500, 16480, 17596, 19203, 20585, 22440, 24375, 26187, 28408, 22605])
+
+
+
 def convert_bgr_to_hsv(image):
 	return cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -77,7 +88,7 @@ def combine_stack(*images):
 
 def get_contours(image):
 	contours, _ = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-	print(f'contours found: {len(contours)}')
+	#print(f'contours found: {len(contours)}')
 	return contours
 
 def draw_contours(image, contours):
@@ -175,6 +186,8 @@ def get_orientation(tip,contours):
 	# print(f'vector direction is {vector_direction}')
 	return np.arctan2(vector_direction[1], vector_direction[0])
 
+
+#TODO: Check how to filter noisy contours, areaa too small or big
 def find_block(image, color):
 	hsv_image = convert_bgr_to_hsv(image)
 	mask_hsv = create_hsv_mask(hsv_image,BLOCK_COLORS[color]['lower'], BLOCK_COLORS[color]['upper'])
@@ -186,6 +199,7 @@ def find_block(image, color):
 		info_cnt = get_contour_box(cnt)
 		info_contours.append(info_cnt)
 	image_to_draw = image.copy()
+	#determine what to do 
 	for inf_cnt in info_contours:
 		image_to_draw = draw_min_enclosing_rectangle(image_to_draw, inf_cnt)
 	# image_block_detected = draw_min_enclosing_rectangle(image, info_contour)
@@ -193,7 +207,7 @@ def find_block(image, color):
 	return image_to_draw, info_contours
 
 
-def center_area_aspect_ratio(contour):
+def area_aspect_ratio_center(contour):
 	left_pos_x,left_pos_y,width,height = contour
 	#* get the area of the rectangle that holds the contour
 	area = width * height
@@ -204,16 +218,58 @@ def center_area_aspect_ratio(contour):
 	center = (center_x,center_y)
 	return area, aspect_ratio,center
 
+def show_area(image, block_color):
+	block_shape, info_contours = find_block(image, block_color)
+	# print(f'image shape: {image.shape}')
+	# # plt.imshow(block_shape)
+	# # plt.show()
+	# print("Running tests...")
+	if len(info_contours) == 0:
+		return block_shape
+	block_test = info_contours[0]
+	area, aspect_ratio,center = center_area_aspect_ratio(block_test)
+	#print(f'area: {area}, aspect ratio: {aspect_ratio}, center: {center}')
+	#image_center = draw_center_image(block_test)
+	aprox_distance = distance_to_block_by(area)
+	aprox_angle = angle_block_gripper_by(center)
+	image_area = cv2.putText(block_shape,f'Area: {area} pix2',(10,50),FONT,2,(0,255,255),2)
+	# text_distance = round(aprox_distance,2) if aprox_distance is not None else aprox_distance
+	image_distance = cv2.putText(image_area,f'dist: {aprox_distance} cm',(10,100),FONT,2,(255,0,255),2)
+	image_aspect = cv2.putText(image_distance,f'aspect: {round(aspect_ratio,3)}',(10,150),FONT,2,(255,255,0),2)
+	image_angle = cv2.putText(image_aspect,f'angle: {round(aprox_angle,2)} deg',(10,200),FONT,2,(255,255,128),2)
+	return image_angle
+
 #get the angle in degrees from the center of the rectangle to the center of the image
 def angle_block_gripper_by(center_block):
 	return (CENTER_X_IMAGE - center_block[0]) * PIXEL_ANGLE
 
 def verify_gripper_by(state):
-    pass
+	pass
 
 def distance_to_block_by(area):
-	aprox_distance = -0.002015*area + 69.156
+	#aprox_distance= (np.log(45923/area))/0.056
+	#aprox_distance = -0.002015*area + 69.156
 	# if area > 42500:
 	# 	aprox_distance = area
-	return aprox_distance
+	#return aprox_distance
+    # Handle edge cases: area outside the table range
+    if area > AREAS_X[-1]:
+        return 'Near Object'
+    if area < AREAS_X[0]: 
+        return 'Far Object'
 
+    # Search for the area in the table
+    for idx in range(len(AREAS_X) - 1):
+        if area == AREAS_X[idx]:  # Exact match
+            return DISTANCES_Y[idx]
+        elif AREAS_X[idx] < area < AREAS_X[idx + 1]:  # Area is between AREAS_X[idx] and AREAS_X[idx+1]
+            # Return the average of the corresponding DISTANCES_Y
+            return round( (DISTANCES_Y[idx] + DISTANCES_Y[idx + 1]) / 2 ,2)
+
+    # If area matches the last entry
+    if area == AREAS_X[-1]:
+        return DISTANCES_Y[-1]
+
+def check_gripper_state():
+    state_gripper = False
+    return state_gripper

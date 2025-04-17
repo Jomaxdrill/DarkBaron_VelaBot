@@ -1,15 +1,15 @@
-#import RPi.GPIO as gpio
+import RPi.GPIO as gpio
 import numpy as np
 import time
 from constants_pi import ENCODER_LEFT,ENCODER_RIGHT
 from utilities_sensors import read_imu_yaw_angle
+
 MIN_RESOLUTION_LIN = 1.021 #cm aprox watch means advance 1 step of encoder
 MIN_RESOLUTION_ROT = 4.5 #degrees aprox watch means rotate 1 step of encoder
 
 K_linear = 1.25
-K_rot = 5
 K_ROT_IMU = 1.1
-K_D_ROT_IMU = 1.175
+K_D_ROT_IMU = 1.12#1.175
 ERROR_STEPS = 1
 
 STEPS = 20 #steps equivalent to one revolution of the wheel
@@ -31,8 +31,8 @@ def transformation_robot_to_world(angle, position):
 	])
 
 
-def control_translation(action, reference, history, last_position, pwm_cycle):
-	#last_position = history[-1] if history else (0, 0, 0)
+def control_translation(action, reference, history, last_position):
+	last_position = history[-1] if history else (0, 0, 0)
 	pos_x, pos_y, angle = last_position
 	transf_matrix = transformation_robot_to_world(angle, (pos_x, pos_y))
 	counter_R = np.uint64(0)
@@ -72,15 +72,17 @@ def control_translation(action, reference, history, last_position, pwm_cycle):
 		ticks = round((counter_R + counter_L)/2)
 		advancement = ticks*MIN_RESOLUTION_LIN
 		print(f'\ntraveled: {advancement}cm\n')
+		course_advancement = flag_type * advancement
 		#transform to the world system the coordinates of the robot
-		advance_world = transf_matrix @ np.array([advancement, 0, 1])
+		advance_world = transf_matrix @ np.array([course_advancement, 0, 1])
 		print('advance world:', advance_world)
 		#record position considered
 		history.append((*advance_world[0:2],angle))
 	pwm_left.stop() # USE % OF duty cycle
 	pwm_right.stop() # USE % OF duty cycle
-	print(f'success performing {reference}{"cm" if flag_type == 1 else "°"}\n')
+	print(f'success performing {reference} cm\n')
 	time.sleep(1)
+	return history
 
 def keep_straight_pwm(action,reference):
 	pwm_left, pwm_right = action()
@@ -98,7 +100,7 @@ def keep_straight_pwm(action,reference):
 		error_reference = reference-yaw
 		if abs(error_reference) <= 0.1:
 			success += 1
-			print(f'error reference: {error_reference}')
+			#print(f'error reference: {error_reference}')
 		else:
 			if current_time is None:
 				current_time = 0.001
@@ -118,8 +120,7 @@ def keep_straight_pwm(action,reference):
 
 
 
-def control_rotation_imu(action, reference, history):
-	#init_serial_read()
+def control_rotation_imu(action, reference,sensor_imu,history = []):
 	last_position = history[-1] if history else (0, 0, 0)
 	_, _, angle = last_position
 	error_reference = np.inf
@@ -134,13 +135,13 @@ def control_rotation_imu(action, reference, history):
 	pwm_left_2.start(0)
 	pwm_right_1.start(0)
 	pwm_right_2.start(0)
-	while abs(error_reference) >= 2.5:
-		yaw = read_imu_yaw_angle()
+	while abs(error_reference) >= 1.5:
+		yaw = read_imu_yaw_angle(sensor_imu)
 		if yaw is None:
 			continue
-		print('yaw sensor:', yaw)
+		#print('yaw sensor:', yaw)
 		error_reference = reference - yaw if reference > 0 else yaw- reference
-		print('rot_error:', error_reference)
+		#print('rot_error:', error_reference)
 		if current_time is None:
 			current_time = time.time()
 		# Calculate derivative
@@ -154,9 +155,9 @@ def control_rotation_imu(action, reference, history):
 			else:
 				derivative = 0
 		duty_cycle = abs(error_reference)*K_ROT_IMU + derivative*K_D_ROT_IMU
-		print(f'control signal: {duty_cycle}')
+		#print(f'control signal: {duty_cycle}')
 		#Apply saturation as duty cycle can't be negative or lower certain threshold to work
-		duty_cycle = max(min(duty_cycle, 100),50)#35
+		duty_cycle = max(min(duty_cycle, 100),70)#35
 		if reference > 0:
 			#turn to left direction
 			if error_reference > 0:
@@ -184,12 +185,12 @@ def control_rotation_imu(action, reference, history):
 				pwm_right_1.ChangeDutyCycle(0)
 				pwm_right_2.ChangeDutyCycle(duty_cycle)
 
-		print(f'control signal : {duty_cycle}')
+		#print(f'control signal : {duty_cycle}')
 		prev_time = current_time
 		prev_error = error_reference
 		# pwm_left.ChangeDutyCycle(duty_cycle)
 		# pwm_right.ChangeDutyCycle(duty_cycle)
-	new_rotation = read_imu_yaw_angle() + reference
+	new_rotation = error_reference + reference
 	if new_rotation >= 360:
 		new_rotation = new_rotation % 360
 	print(f'success performing {reference}°\n')
@@ -197,5 +198,6 @@ def control_rotation_imu(action, reference, history):
 	pwm_left_2.stop()
 	pwm_right_1.stop()
 	pwm_right_2.stop()
-	time.sleep(2)
+	time.sleep(1)
 	history.append((*last_position[0:2], new_rotation))
+	return history

@@ -18,10 +18,12 @@ def init_camera():
         lores={"size": CAMERA_LORE_RESOLUTION, "format": FORMAT_YUV},))
     return picam2
 
-def take_image(camera):
+def take_image(camera, save_it=False):
     camera.start()
-    time.sleep(1)
-    image_camera = camera.capture_file(f'camera_pi_{int(time.time())}.jpg')
+    time.sleep(0.5)
+    if save_it:
+        camera.capture_file(f'camera_pi_{int(time.time())}.jpg')
+    image_camera = camera.capture_array()
     return image_camera
 
 def record_video(camera, post_callback, action):
