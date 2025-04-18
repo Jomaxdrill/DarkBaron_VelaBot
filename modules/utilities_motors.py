@@ -102,3 +102,7 @@ def action_gripper(pwm_pin, action_type):
 
 def turn_off_servo(pwm_pin):
     pwm_pin.stop()
+    gpio.cleanup(GRIPPER_PIN)
+
+def clean_up_pwm():
+    gpio.cleanup(MOTOR_L_1,MOTOR_L_2,MOTOR_R_1,MOTOR_R_2)

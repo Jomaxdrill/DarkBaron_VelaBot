@@ -2,8 +2,8 @@ import RPi.GPIO as gpio
 import numpy as np
 import time
 from constants_pi import ENCODER_LEFT,ENCODER_RIGHT
-from utilities_sensors import read_imu_yaw_angle
-
+from utilities_sensors import OFFSET_YAW, read_imu_yaw_angle
+from utilities_motors import clean_up_pwm
 MIN_RESOLUTION_LIN = 1.021 #cm aprox watch means advance 1 step of encoder
 MIN_RESOLUTION_ROT = 4.5 #degrees aprox watch means rotate 1 step of encoder
 
@@ -31,7 +31,25 @@ def transformation_robot_to_world(angle, position):
 	])
 
 
-def control_translation(action, reference, history, last_position):
+def get_angle(vector_a, vector_b):
+	dot_product = np.dot(vector_a, vector_b)
+	angle =np.arcos( dot_product / (np.linalg.norm(vector_a)*np.linalg.norm(vector_b)))
+	angle = np.degrees(angle)
+	#NORMALIZED THE ANGLE
+	if angle > 180 and angle < OFFSET_YAW:
+		angle = angle - OFFSET_YAW
+	return angle
+
+def get_vector(node_a, node_b):
+	"""
+	This function returns the vector from node_a to node_b.
+
+	Args:
+		node_a (tuple): The first node.
+	"""
+	return (node_b[0] - node_a[0], node_b[1] - node_a[1])
+
+def control_translation(action, reference, history):
 	last_position = history[-1] if history else (0, 0, 0)
 	pos_x, pos_y, angle = last_position
 	transf_matrix = transformation_robot_to_world(angle, (pos_x, pos_y))
@@ -81,6 +99,7 @@ def control_translation(action, reference, history, last_position):
 	pwm_left.stop() # USE % OF duty cycle
 	pwm_right.stop() # USE % OF duty cycle
 	print(f'success performing {reference} cm\n')
+	clean_up_pwm()
 	time.sleep(1)
 	return history
 
@@ -116,6 +135,7 @@ def keep_straight_pwm(action,reference):
 				pwm_right.ChangeDutyCycle(duty_cycle)
 			prev_time = current_time
 			prev_error = error_reference
+	clean_up_pwm()
 	print(f'success performing {reference}°\n')
 
 
@@ -191,13 +211,19 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 		# pwm_left.ChangeDutyCycle(duty_cycle)
 		# pwm_right.ChangeDutyCycle(duty_cycle)
 	new_rotation = error_reference + reference
-	if new_rotation >= 360:
-		new_rotation = new_rotation % 360
+	if new_rotation >= OFFSET_YAW:
+		new_rotation = new_rotation % OFFSET_YAW
 	print(f'success performing {reference}°\n')
 	pwm_left_1.stop()
 	pwm_left_2.stop()
 	pwm_right_1.stop()
 	pwm_right_2.stop()
 	time.sleep(1)
+	clean_up_pwm()
 	history.append((*last_position[0:2], new_rotation))
 	return history
+
+#TODO: Function that if no blocks are found turn every x degrees until blocks of the color assigned are found
+#
+def search_action():
+    pass

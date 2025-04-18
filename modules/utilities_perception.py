@@ -227,7 +227,7 @@ def show_area(image, block_color):
 	if len(info_contours) == 0:
 		return block_shape
 	block_test = info_contours[0]
-	area, aspect_ratio,center = center_area_aspect_ratio(block_test)
+	area, aspect_ratio,center = area_aspect_ratio_center(block_test)
 	#print(f'area: {area}, aspect ratio: {aspect_ratio}, center: {center}')
 	#image_center = draw_center_image(block_test)
 	aprox_distance = distance_to_block_by(area)
@@ -270,6 +270,12 @@ def distance_to_block_by(area):
     if area == AREAS_X[-1]:
         return DISTANCES_Y[-1]
 
+
+#TODO: Check if gripper is open or close by an image
 def check_gripper_state():
     state_gripper = False
     return state_gripper
+#TODO: If many contours are found decide which one is nearest or easiest to go
+
+#TODO: Play with homography to generate a bird view of the robot
+
