@@ -3,6 +3,7 @@ import numpy as np
 CAMERA_MAIN_RESOLUTION = (900,780)
 
 #TODO: TUNE THRESHOLDS FOR RED,GREEN & BLUE
+#TODO: UNDERSTAND HOW ILLUMINATION CAN AFFECT THE MEASUREMENTS
 #GREEN
 LOWER_GREEN = np.array([45, 60, 155])#145
 UPPER_GREEN = np.array([70, 255, 255])
@@ -16,7 +17,7 @@ UPPER_BLUE = np.array([150, 255, 255])
 #
 FONT = cv2.FONT_HERSHEY_PLAIN
 #
-PIXEL_ANGLE = 0.0616 #angle in degrees that represents a pixel movement
+PIXEL_ANGLE = 0.0614 #angle in degrees that represents a pixel movement
 CENTER_X_IMAGE = int(CAMERA_MAIN_RESOLUTION[0]//2)
 BLOCK_COLORS = {
 	'green':

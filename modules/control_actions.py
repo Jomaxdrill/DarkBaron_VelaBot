@@ -3,13 +3,13 @@ import numpy as np
 import time
 from constants_pi import ENCODER_LEFT,ENCODER_RIGHT
 from utilities_sensors import OFFSET_YAW, read_imu_yaw_angle
-from utilities_motors import clean_up_pwm
+from utilities_motors import turn_off_motors
 MIN_RESOLUTION_LIN = 1.021 #cm aprox watch means advance 1 step of encoder
 MIN_RESOLUTION_ROT = 4.5 #degrees aprox watch means rotate 1 step of encoder
 
 K_linear = 1.25
 K_ROT_IMU = 1.1
-K_D_ROT_IMU = 1.12#1.175
+K_D_ROT_IMU = 1.175#1.175
 ERROR_STEPS = 1
 
 STEPS = 20 #steps equivalent to one revolution of the wheel
@@ -33,7 +33,7 @@ def transformation_robot_to_world(angle, position):
 
 def get_angle(vector_a, vector_b):
 	dot_product = np.dot(vector_a, vector_b)
-	angle =np.arcos( dot_product / (np.linalg.norm(vector_a)*np.linalg.norm(vector_b)))
+	angle =np.arccos( dot_product / (np.linalg.norm(vector_a)*np.linalg.norm(vector_b)))
 	angle = np.degrees(angle)
 	#NORMALIZED THE ANGLE
 	if angle > 180 and angle < OFFSET_YAW:
@@ -49,7 +49,7 @@ def get_vector(node_a, node_b):
 	"""
 	return (node_b[0] - node_a[0], node_b[1] - node_a[1])
 
-def control_translation(action, reference, history):
+def control_translation(action, reference, history, setup_motor):
 	last_position = history[-1] if history else (0, 0, 0)
 	pos_x, pos_y, angle = last_position
 	transf_matrix = transformation_robot_to_world(angle, (pos_x, pos_y))
@@ -61,8 +61,8 @@ def control_translation(action, reference, history):
 	advancement = 0
 	duty_cycle = 0
 	pwm_left, pwm_right, flag_type = action()
-	pwm_left.start(0) # USE % OF duty cycle
-	pwm_right.start(0) # USE % OF duty cycle
+	pwm_left.start(PWM_LINEAR) # USE % OF duty cycle
+	pwm_right.start(PWM_LINEAR) # USE % OF duty cycle
 	steps_reference = round(reference/MIN_RESOLUTION_LIN)
 	print(f'steps reference: {steps_reference}')
 	while ticks <= steps_reference:
@@ -77,6 +77,7 @@ def control_translation(action, reference, history):
 		diff_counter = counter_L - counter_R
 		#print('encoder error',diff_counter)
 		duty_cycle =  PWM_LINEAR - K_linear* abs(diff_counter)
+		#print(f'duty cycle is: {duty_cycle}')
 		#left motor is going faster than right motor
 		if diff_counter >= ERROR_STEPS:
 			pwm_left.ChangeDutyCycle(duty_cycle)
@@ -89,17 +90,17 @@ def control_translation(action, reference, history):
 		# 	pwm_left.stop()
 		ticks = round((counter_R + counter_L)/2)
 		advancement = ticks*MIN_RESOLUTION_LIN
-		print(f'\ntraveled: {advancement}cm\n')
+		#print(f'\ntraveled: {advancement}cm\n')
 		course_advancement = flag_type * advancement
 		#transform to the world system the coordinates of the robot
 		advance_world = transf_matrix @ np.array([course_advancement, 0, 1])
-		print('advance world:', advance_world)
+		#print('advance world:', advance_world)
 		#record position considered
 		history.append((*advance_world[0:2],angle))
-	pwm_left.stop() # USE % OF duty cycle
-	pwm_right.stop() # USE % OF duty cycle
+	pwm_left.stop() 
+	pwm_right.stop() 
 	print(f'success performing {reference} cm\n')
-	clean_up_pwm()
+	turn_off_motors()
 	time.sleep(1)
 	return history
 
@@ -135,7 +136,7 @@ def keep_straight_pwm(action,reference):
 				pwm_right.ChangeDutyCycle(duty_cycle)
 			prev_time = current_time
 			prev_error = error_reference
-	clean_up_pwm()
+	turn_off_motors()
 	print(f'success performing {reference}°\n')
 
 
@@ -155,7 +156,7 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 	pwm_left_2.start(0)
 	pwm_right_1.start(0)
 	pwm_right_2.start(0)
-	while abs(error_reference) >= 1.5:
+	while abs(error_reference) >= 0.45:
 		yaw = read_imu_yaw_angle(sensor_imu)
 		if yaw is None:
 			continue
@@ -219,7 +220,7 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 	pwm_right_1.stop()
 	pwm_right_2.stop()
 	time.sleep(1)
-	clean_up_pwm()
+	turn_off_motors()
 	history.append((*last_position[0:2], new_rotation))
 	return history
 
