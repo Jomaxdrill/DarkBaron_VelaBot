@@ -1,9 +1,11 @@
 from constants_pi import *
 import RPi.GPIO as gpio
 import time
+import numpy as np
 
 OFFSET_YAW = 360
-
+RECORD_DATA = 10
+SPEED_SOUND = 34300
 def record_count(encoder,counter,button):
 	if int(gpio.input(encoder)) != int(button):
 		button = int(gpio.input(encoder))
@@ -31,7 +33,7 @@ def distance():
 	pulse_duration = pulse_end - pulse_start
 
 	#calculate the distance in cm
-	distance = (pulse_duration * 34300) / 2
+	distance = (pulse_duration * SPEED_SOUND) / 2
 	distance = round(distance, 2)
 
 	return distance
@@ -39,18 +41,36 @@ def distance():
 
 #imu sensor
 #TODO: check why yaw sends None
-def read_imu_yaw_angle(imu_sensor):
+def read_imu_yaw_angle(imu_sensor, prev_yaw =0):
 	count = 0
-	if imu_sensor.in_waiting > 0:
-		while count < 10:
-			count += 1
-		line = imu_sensor.readline()
-		line = line.rstrip().lstrip()
-		yaw_raw = str(line)
-		yaw = float(yaw_raw.strip("'").strip("'b"))
-		if yaw == 360 or yaw == 0:
-			return 0
-		yaw_normalized = OFFSET_YAW - yaw
-		if yaw_normalized > 180 and yaw_normalized < 360:
-			yaw_normalized = yaw_normalized - OFFSET_YAW
-		return yaw_normalized
+	imu_measurements = []
+	while count < RECORD_DATA:
+		if imu_sensor.in_waiting > 0:
+			line_raw = imu_sensor.readline()
+			line = line_raw.rstrip().lstrip()
+			yaw_raw = str(line)
+			yaw = float(yaw_raw.strip("'").strip("'b"))
+			if yaw == OFFSET_YAW or yaw == 0:
+				return 0
+			yaw_normalized = OFFSET_YAW - yaw
+			if yaw_normalized > OFFSET_YAW//2 and yaw_normalized < OFFSET_YAW:
+				yaw_normalized = yaw_normalized - OFFSET_YAW
+			if yaw_normalized is None:
+				print(f"No yaw data received, line raw was¨{line_raw} ")
+				return prev_yaw
+			imu_measurements.append(yaw_normalized)
+		count += 1
+	filter_imu = function_moving_average(imu_measurements, 2) if len(imu_measurements) > 2 else imu_measurements
+	yaw_average = np.mean(filter_imu)
+	return yaw_average
+
+def function_moving_average(data_info, window_size):
+    data_moving_average = np.zeros(len(data_info))
+    for idx in range(len(data_info)):
+        #for windows that will be out of the range of the data
+        if idx + window_size > len(data_info):
+            data_average = np.mean(data_info[idx:])
+        else:
+            data_average = np.mean(data_info[idx:idx + window_size-1])
+        data_moving_average[idx] = data_average
+    return data_moving_average

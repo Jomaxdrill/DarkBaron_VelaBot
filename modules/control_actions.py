@@ -64,7 +64,7 @@ def control_translation(action, reference, history, setup_motor):
 	pwm_left.start(PWM_LINEAR) # USE % OF duty cycle
 	pwm_right.start(PWM_LINEAR) # USE % OF duty cycle
 	steps_reference = round(reference/MIN_RESOLUTION_LIN)
-	print(f'steps reference: {steps_reference}')
+	print(f'steps reference: {steps_reference} ')
 	while ticks <= steps_reference:
 		if int(gpio.input(ENCODER_RIGHT)) != int(button_R):
 			button_R = int(gpio.input(ENCODER_RIGHT))
@@ -97,8 +97,8 @@ def control_translation(action, reference, history, setup_motor):
 		#print('advance world:', advance_world)
 		#record position considered
 		history.append((*advance_world[0:2],angle))
-	pwm_left.stop() 
-	pwm_right.stop() 
+	pwm_left.stop()
+	pwm_right.stop()
 	print(f'success performing {reference} cm\n')
 	turn_off_motors()
 	time.sleep(1)
@@ -139,11 +139,9 @@ def keep_straight_pwm(action,reference):
 	turn_off_motors()
 	print(f'success performing {reference}°\n')
 
-
-
 def control_rotation_imu(action, reference,sensor_imu,history = []):
 	last_position = history[-1] if history else (0, 0, 0)
-	_, _, angle = last_position
+	# _, _, angle = last_position
 	error_reference = np.inf
 	prev_time = None
 	derivative = 0
@@ -157,7 +155,7 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 	pwm_right_1.start(0)
 	pwm_right_2.start(0)
 	while abs(error_reference) >= 0.45:
-		yaw = read_imu_yaw_angle(sensor_imu)
+		yaw = read_imu_yaw_angle(sensor_imu, yaw)
 		if yaw is None:
 			continue
 		#print('yaw sensor:', yaw)
