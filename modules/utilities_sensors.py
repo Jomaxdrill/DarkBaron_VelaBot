@@ -13,7 +13,7 @@ def record_count(encoder,counter,button):
 		print(counter)
 
 #sonar sensor
-def distance():
+def distance_sonar():
 	#Ensure output has no false value
 	gpio.output(TRIG, False)
 	time.sleep(0.1)
@@ -41,28 +41,18 @@ def distance():
 
 #imu sensor
 #TODO: check why yaw sends None
-def read_imu_yaw_angle(imu_sensor, prev_yaw =0):
-	count = 0
-	imu_measurements = []
-	while count < RECORD_DATA:
-		if imu_sensor.in_waiting > 0:
-			line_raw = imu_sensor.readline()
-			line = line_raw.rstrip().lstrip()
-			yaw_raw = str(line)
-			yaw = float(yaw_raw.strip("'").strip("'b"))
-			if yaw == OFFSET_YAW or yaw == 0:
-				return 0
-			yaw_normalized = OFFSET_YAW - yaw
-			if yaw_normalized > OFFSET_YAW//2 and yaw_normalized < OFFSET_YAW:
-				yaw_normalized = yaw_normalized - OFFSET_YAW
-			if yaw_normalized is None:
-				print(f"No yaw data received, line raw was¨{line_raw} ")
-				return prev_yaw
-			imu_measurements.append(yaw_normalized)
-		count += 1
-	filter_imu = function_moving_average(imu_measurements, 2) if len(imu_measurements) > 2 else imu_measurements
-	yaw_average = np.mean(filter_imu)
-	return yaw_average
+def read_imu_yaw_angle(imu_sensor):
+	if imu_sensor.in_waiting > 0:
+		line = imu_sensor.readline()
+		line = line.rstrip().lstrip()
+		yaw_raw = str(line)
+		yaw = float(yaw_raw.strip("'").strip("'b"))
+		if yaw == OFFSET_YAW or yaw == 0:
+			return 0
+		yaw_normalized = OFFSET_YAW - yaw
+		if yaw_normalized > OFFSET_YAW//2 and yaw_normalized < OFFSET_YAW:
+			yaw_normalized = yaw_normalized - OFFSET_YAW
+		return yaw_normalized
 
 def function_moving_average(data_info, window_size):
     data_moving_average = np.zeros(len(data_info))

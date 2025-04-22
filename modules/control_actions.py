@@ -2,7 +2,7 @@ import RPi.GPIO as gpio
 import numpy as np
 import time
 from constants_pi import ENCODER_LEFT,ENCODER_RIGHT
-from utilities_sensors import OFFSET_YAW, read_imu_yaw_angle
+from utilities_sensors import OFFSET_YAW, read_imu_yaw_angle,distance_sonar
 from utilities_motors import turn_off_motors
 MIN_RESOLUTION_LIN = 1.021 #cm aprox watch means advance 1 step of encoder
 MIN_RESOLUTION_ROT = 4.5 #degrees aprox watch means rotate 1 step of encoder
@@ -17,7 +17,7 @@ STEPS = 20 #steps equivalent to one revolution of the wheel
 PWM_LINEAR = 30 #75 turnning #30 advance
 PWM_ROT = 75
 
-
+UNITARY_VECTOR_X = [1,0] #the angle is always respect to the x axis
 
 def transformation_robot_to_world(angle, position):
 	pos_x, pos_y = position
@@ -31,12 +31,11 @@ def transformation_robot_to_world(angle, position):
 	])
 
 
-def get_angle(vector_a, vector_b):
-	dot_product = np.dot(vector_a, vector_b)
-	angle =np.arccos( dot_product / (np.linalg.norm(vector_a)*np.linalg.norm(vector_b)))
-	angle = np.degrees(angle)
+def get_angle(vector_a):
+	dot_product = np.dot(vector_a, UNITARY_VECTOR_X)
+	angle = np.degrees(dot_product)
 	#NORMALIZED THE ANGLE
-	if angle > 180 and angle < OFFSET_YAW:
+	if angle > OFFSET_YAW//2 and angle < OFFSET_YAW:
 		angle = angle - OFFSET_YAW
 	return angle
 
@@ -50,7 +49,7 @@ def get_vector(node_a, node_b):
 	return (node_b[0] - node_a[0], node_b[1] - node_a[1])
 
 def control_translation(action, reference, history, setup_motor):
-	last_position = history[-1] if history else (0, 0, 0)
+	last_position = history[-1] if history else (0.0, 0.0, 0.0)
 	pos_x, pos_y, angle = last_position
 	transf_matrix = transformation_robot_to_world(angle, (pos_x, pos_y))
 	counter_R = np.uint64(0)
@@ -66,6 +65,7 @@ def control_translation(action, reference, history, setup_motor):
 	steps_reference = round(reference/MIN_RESOLUTION_LIN)
 	print(f'steps reference: {steps_reference} ')
 	while ticks <= steps_reference:
+		#print(f'sonar:{distance_sonar()} cm')
 		if int(gpio.input(ENCODER_RIGHT)) != int(button_R):
 			button_R = int(gpio.input(ENCODER_RIGHT))
 			counter_R += 1
@@ -96,7 +96,9 @@ def control_translation(action, reference, history, setup_motor):
 		advance_world = transf_matrix @ np.array([course_advancement, 0, 1])
 		#print('advance world:', advance_world)
 		#record position considered
-		history.append((*advance_world[0:2],angle))
+		pos_to_record = (*advance_world[0:2], angle)
+		if pos_to_record != history[-1]:
+			history.append(pos_to_record) 
 	pwm_left.stop()
 	pwm_right.stop()
 	print(f'success performing {reference} cm\n')
@@ -140,7 +142,7 @@ def keep_straight_pwm(action,reference):
 	print(f'success performing {reference}°\n')
 
 def control_rotation_imu(action, reference,sensor_imu,history = []):
-	last_position = history[-1] if history else (0, 0, 0)
+	last_position = history[-1] if history else (0.0, 0.0, 0)
 	# _, _, angle = last_position
 	error_reference = np.inf
 	prev_time = None
@@ -154,8 +156,8 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 	pwm_left_2.start(0)
 	pwm_right_1.start(0)
 	pwm_right_2.start(0)
-	while abs(error_reference) >= 0.45:
-		yaw = read_imu_yaw_angle(sensor_imu, yaw)
+	while abs(error_reference) >= 0.3:
+		yaw = read_imu_yaw_angle(sensor_imu)
 		if yaw is None:
 			continue
 		#print('yaw sensor:', yaw)
@@ -212,7 +214,7 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 	new_rotation = error_reference + reference
 	if new_rotation >= OFFSET_YAW:
 		new_rotation = new_rotation % OFFSET_YAW
-	print(f'success performing {reference}°\n')
+	print(f'success performing {new_rotation}°\n')
 	pwm_left_1.stop()
 	pwm_left_2.stop()
 	pwm_right_1.stop()
@@ -226,3 +228,4 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 #
 def search_action():
     pass
+
