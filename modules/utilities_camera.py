@@ -10,6 +10,7 @@ CAMERA_LORE_RESOLUTION = (450, 375)
 CAMERA_FPS = 30
 FORMAT_RGB = 'RGB888'
 FORMAT_YUV = 'YUV420'
+
 def init_camera():
     picam2 = Picamera2()
     picam2.configure( picam2.create_video_configuration(

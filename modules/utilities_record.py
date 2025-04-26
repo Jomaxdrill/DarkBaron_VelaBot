@@ -16,7 +16,7 @@ from utilities_camera import take_image
 smtpUser = 'mailtestdarkbaronvelabot@gmail.com'
 smtpPass = 'fvvelfyvyihcifss'
 # Destination email information
-toAdd = ['carolinavelandia26@gmail.com','jcrespo@umd.edu']
+toAdd = ['pocres94@gmail.com','jcrespo@umd.edu']
 
 
 def send_email(camera, color):
@@ -55,7 +55,6 @@ def send_email(camera, color):
 	return True
 
 def save_file_info(data):
-        
 	unix_timestamp= time.time()
 	txt_file = datetime.fromtimestamp(unix_timestamp).strftime('%Y%m%d%H%M%S')
 	#write the time of the processed frame

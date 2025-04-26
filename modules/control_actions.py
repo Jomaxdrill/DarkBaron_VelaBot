@@ -4,7 +4,11 @@ import time
 from constants_pi import ENCODER_LEFT,ENCODER_RIGHT
 from utilities_sensors import OFFSET_YAW, read_imu_yaw_angle,distance_sonar
 from utilities_motors import turn_off_motors
-MIN_RESOLUTION_LIN = 1.021 #cm aprox watch means advance 1 step of encoder
+
+DEFAULT_ADVANCE_DISTANCE = 20.42  # cm
+DEFAULT_CLOSE_DISTANCE = 6.0  # cm
+STEPS = 20 #steps equivalent to one revolution of the wheel
+MIN_RESOLUTION_LIN = DEFAULT_ADVANCE_DISTANCE / STEPS #cm aprox watch means advance 1 step of encoder
 MIN_RESOLUTION_ROT = 4.5 #degrees aprox watch means rotate 1 step of encoder
 
 K_linear = 1.25
@@ -12,7 +16,6 @@ K_ROT_IMU = 1.1
 K_D_ROT_IMU = 1.175#1.175
 ERROR_STEPS = 1
 
-STEPS = 20 #steps equivalent to one revolution of the wheel
 
 PWM_LINEAR = 30 #75 turnning #30 advance
 PWM_ROT = 75
@@ -98,7 +101,7 @@ def control_translation(action, reference, history, setup_motor):
 		#record position considered
 		pos_to_record = (*advance_world[0:2], angle)
 		if pos_to_record != history[-1]:
-			history.append(pos_to_record) 
+			history.append(pos_to_record)
 	pwm_left.stop()
 	pwm_right.stop()
 	print(f'success performing {reference} cm\n')
@@ -225,7 +228,4 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 	return history
 
 #TODO: Function that if no blocks are found turn every x degrees until blocks of the color assigned are found
-#
-def search_action():
-    pass
 

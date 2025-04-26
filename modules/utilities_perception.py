@@ -14,12 +14,17 @@ UPPER_RED = np.array([5, 255, 255])
 LOWER_BLUE = np.array([80, 65, 100])
 UPPER_BLUE = np.array([150, 255, 255])
 
+#BLACK
+LOWER_BLACK = np.array([0, 0, 0])
+UPPER_BLACK = np.array([180, 255, 55])
+
 #
 FONT = cv2.FONT_HERSHEY_PLAIN
 #
 NOISY_CONTOUR_AREA = 1000 #minimum area of the contour to be considered
 PIXEL_ANGLE = 0.061 #angle in degrees that represents a pixel movement #0.0605
 CENTER_X_IMAGE = int(CAMERA_MAIN_RESOLUTION[0]//2)
+GRIPPER_COLOR = 'black'
 BLOCK_COLORS = {
 	'green':
 		{
@@ -35,6 +40,11 @@ BLOCK_COLORS = {
 		{
 			'lower': LOWER_BLUE,
 			'upper': UPPER_BLUE
+		},
+	'black':
+		{
+			'lower': LOWER_BLACK,
+			'upper': UPPER_BLACK
 		}
 }
 
@@ -58,7 +68,6 @@ MEDIAN_BLUR_KERNEL = 9
 BLOCK_SIZE = 7
 APERTURE_SIZE = 7 #sobel kernel 7x7
 FREE_K_SIZE = 0.05
-UNITARY_VECTOR = [1,0]
 FONT1 = cv2.FONT_HERSHEY_PLAIN
 
 #LOOK UP TABLE FOR DEPTH ESTIMATION
@@ -66,11 +75,11 @@ FONT1 = cv2.FONT_HERSHEY_PLAIN
 # DISTANCES_Y = np.array([67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 
 #                         39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16])
 # AREAS_X = np.array([2400, 2542, 2583, 2646, 2688, 2925, 2970, 2992, 3220, 3337, 3456, 3577, 3626, 3675, 3850, 3978, 4240, 4374, 4510,
-#                     4704, 4902, 5192, 5310, 5460, 5828, 6048, 6336, 6666, 7072, 7314, 7776, 8103, 8562, 9009, 9360, 10044, 10668, 
+#                     4704, 4902, 5192, 5310, 5460, 5828, 6048, 6336, 6666, 7072, 7314, 7776, 8103, 8562, 9009, 9360, 10044, 10668,
 #                     10920, 12193, 13080, 13630, 14453, 15500, 16480, 17596, 19203, 20585, 22440, 24375, 26187, 28408, 22605])
 
-AREAS_X = (16848, 17976, 19314, 20520, 22066, 23912, 25452, 28329, 30360, 33120, 35787, 36729, 37350, 
-           38566, 39083, 39991, 40512, 41175, 41211, 41600, 40752)
+AREAS_X = (16848, 17976, 19314, 20520, 22066, 23912, 25452, 28329, 30360, 33120, 35787, 36729, 37350,
+		38566, 39083, 39991, 40512, 41175, 41211, 41600, 40752)
 DISTANCES_Y = (30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10)
 
 def convert_bgr_to_hsv(image):
@@ -191,21 +200,20 @@ def get_orientation(tip,contours):
 	# print(f'vector direction is {vector_direction}')
 	return np.arctan2(vector_direction[1], vector_direction[0])
 
-
-#TODO: Check how to filter noisy contours, areaa too small or big
-def find_block(image, color):
+def process_image_contours(image,color):
 	hsv_image = convert_bgr_to_hsv(image)
 	mask_hsv = create_hsv_mask(hsv_image,BLOCK_COLORS[color]['lower'], BLOCK_COLORS[color]['upper'])
 	blurry_mask = median_blurry_filter(mask_hsv)
 	blurry_mask = blurry_image(mask_hsv)
 	contours = get_contours(blurry_mask)
+	return contours
+#TODO: Check how to filter noisy contours, areaa too small or big
+def find_block(image, color):
+	contours = process_image_contours(image,color)
 	print(f'contours found: {len(contours)}')
-	info_contours = []
-	for cnt in contours:
-		info_cnt = get_contour_box(cnt)
-		info_contours.append(info_cnt)
+	info_contours = [ get_contour_box(cnt) for cnt in contours ]
 	image_to_draw = image.copy()
-	#determine what to do 
+	#determine what to do
 	for inf_cnt in info_contours:
 		image_to_draw = draw_min_enclosing_rectangle(image_to_draw, inf_cnt)
 	# image_block_detected = draw_min_enclosing_rectangle(image, info_contour)
@@ -213,8 +221,8 @@ def find_block(image, color):
 	return image_to_draw, info_contours
 
 
-def area_aspect_ratio_center(contour):
-	left_pos_x,left_pos_y,width,height = contour
+def area_aspect_ratio_center(info_contour):
+	left_pos_x,left_pos_y,width,height = info_contour
 	#* get the area of the rectangle that holds the contour
 	area = width * height
 	aspect_ratio = float(width/height)
@@ -225,9 +233,20 @@ def area_aspect_ratio_center(contour):
 	return area, aspect_ratio,center
 
 def get_nearest_block(info_contours):
-    areas_all = [width*height for _,_,width,height in info_contours]
-    filter_noisy_contours = [area for area in areas_all if area >= NOISY_CONTOUR_AREA]
-    return areas_all.index(max(filter_noisy_contours))
+	areas_all = [width*height for _,_,width,height in info_contours]
+	filter_noisy_contours = [area for area in areas_all if area >= NOISY_CONTOUR_AREA]
+	return info_contours.index(max(filter_noisy_contours))
+
+def inform_block(image, color_block):
+	#process the image to find potential blocks
+	_, info_contours = find_block(image, color_block)
+	#check if there are any blocks detected
+	if len(info_contours):
+		#find the block with the greatest area that is also the closest one to the robot
+		target_block = get_nearest_block(info_contours)
+		return target_block
+	return False
+
 def show_area(image, block_color):
 	block_shape, info_contours = find_block(image, block_color)
 	# print(f'image shape: {image.shape}')
@@ -253,8 +272,6 @@ def show_area(image, block_color):
 def angle_block_gripper_by(center_block):
 	return (CENTER_X_IMAGE - center_block[0]) * PIXEL_ANGLE
 
-def verify_gripper_by(state):
-	pass
 
 def draw_center_image(image, center = CAMERA_MAIN_RESOLUTION):
 	#draw center of the image
@@ -262,44 +279,57 @@ def draw_center_image(image, center = CAMERA_MAIN_RESOLUTION):
 	cv2.line(image, (int(center[0])-CROSS_LENGTH, int(center[1])), (int(center[0]+CROSS_LENGTH), int(center[1] )), CROSS_COLOR, CROSS_BORDER)
 	cv2.line(image, (int(center[0]), int(center[1])-CROSS_LENGTH), (int(center[0]), int(center[1] +CROSS_LENGTH)), CROSS_COLOR, CROSS_BORDER)
 	return image
-def crop_half_image(image,center = CAMERA_MAIN_RESOLUTION):
-    image[:center[1], :] = 0
-    return image
-    
+def crop_half_image(image, center = CAMERA_MAIN_RESOLUTION):
+	image[:center[1], :] = 255
+	return image
+
 def distance_to_block_by(area, aspect_ratio):
 	#aprox_distance= (np.log(45923/area))/0.056
 	#aprox_distance = -0.002015*area + 69.156
-	# if area > 42500:
-	# 	aprox_distance = area
-	#return aprox_distance
-    # Handle edge cases: area outside the table range
-    if area > AREAS_X[-1]:
-        return 'Near Object'
-    if area < AREAS_X[0] or area < 1000: 
-        return 'Far Object'
-
-    # Search for the area in the table
-    for idx in range(len(AREAS_X) - 1):
-        if area == AREAS_X[idx]:  # Exact match
-            return DISTANCES_Y[idx]
-        elif AREAS_X[idx] < area < AREAS_X[idx + 1]:  # Area is between AREAS_X[idx] and AREAS_X[idx+1]
-            # Return the average of the corresponding DISTANCES_Y
-            return round( (DISTANCES_Y[idx] + DISTANCES_Y[idx + 1]) / 2 ,2)
-
-    # If area matches the last entry
-    if area == AREAS_X[-1]:
-        return DISTANCES_Y[-1]
-
+	# Handle edge cases: area outside the table range
+	#*aspect ratio plays an important role in the close distance
+	if aspect_ratio < 1:
+		if area < AREAS_X[0] or area < 1000:
+			return 'Far Object'
+		if area == AREAS_X[-1]:
+			return DISTANCES_Y[-1]
+		# Search for the area in the table
+		for idx in range(len(AREAS_X) - 1):
+			if area == AREAS_X[idx]:  # Exact match
+				return DISTANCES_Y[idx]
+			elif AREAS_X[idx] < area < AREAS_X[idx + 1]:  # Area is between AREAS_X[idx] and AREAS_X[idx+1]
+				# Return the average of the corresponding DISTANCES_Y
+				return round( (DISTANCES_Y[idx] + DISTANCES_Y[idx + 1]) / 2 ,2)
+	else:
+		if 1 <= aspect_ratio < 3:
+			return 'Close Object'
+		if aspect_ratio > 3:
+			return 'In range to catch'
 
 #TODO: Check if gripper is open or close by an image
-def check_gripper_state():
-    state_gripper = False
-    return state_gripper
+def check_gripper_state(image):
+	contours = process_image_contours(image,GRIPPER_COLOR)
+	#potentially the gripper is open
+	if len(contours) == 2:
+		return 'OPEN'
+	#potentially the gripper is close
+	elif len(contours) == 1:
+		return 'CLOSE'
+	else:
+		return False
 
-def check_block_gripper():
+#check if block is in the gripper
+def check_block_gripper(image, color):
+	closest_block = inform_block(image, color)
+	if closest_block:
+		info_contour = get_contour_box(closest_block)
+		_, aspect, center = area_aspect_ratio_center(info_contour)
+		#check if the block is in the gripper
+		if aspect > 3 and (CENTER_X_IMAGE -200 <center[0] < CENTER_X_IMAGE +200) and(560 < center[1] < CAMERA_MAIN_RESOLUTION[1]//2):
+			return True
+		return False
 	#check if the block is in the gripper
-	#take an image and check if there is a block in the gripper
-	#if there is a block return True else False
 	return False
+
 #TODO: Play with homography to generate a bird view of the robot
 
