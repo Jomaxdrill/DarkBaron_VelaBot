@@ -5,14 +5,16 @@ from utilities_record import *
 from utilities_perception import *
 from basic_init import *
 
-TOTAL_BLOCKS = 3
+TOTAL_BLOCKS = 1
 LOCALIZE_SEQUENCE = [0,90,180,-90,0]
-SEARCH_SEQUENCE = [0,20,-20,45,-45,90,-90]
-TOTAL_MAP = 365.76 #edge of total square map
+SEARCH_SEQUENCE = [0,20,-20]
 EDGE_MAP = 30.48 #cm
-OFFSET_LOCATE = 2 #cm
-CORNER_GOAL = (30.48, 335.28) #cm
-block_sequence = ['red','blue','green']
+TOTAL_MAP = (115, 98)
+#SEARCH_SEQUENCE = [0,20,-20,45,-45,90,-90]
+# TOTAL_MAP = (365.76,365.76) #edge of total square map
+# OFFSET_LOCATE = 2 #cm
+# CORNER_GOAL = (30.48, 335.28) #cm
+# block_sequence = ['red','blue','green']
 def first_planner(block_sequence, goal_coordinates):
 	# Initialize GPIO pins
 	init_gpio()
@@ -65,8 +67,8 @@ def localize(imu_sensor, record_pos):
 		print(f'localize {value}')
 	hor_distance = distances_calibration[0] + distances_calibration[2]
 	ver_distance = distances_calibration[1] + distances_calibration[3]
-	diff_hor = hor_distance - TOTAL_MAP
-	diff_ver = ver_distance - TOTAL_MAP
+	diff_hor = hor_distance - TOTAL_MAP[0]
+	diff_ver = ver_distance - TOTAL_MAP[1]
 	pos_x = record_pos[-1][0]
 	pos_y = record_pos[-1][1]
 	#an attempt to correct the position
@@ -110,18 +112,34 @@ def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos):
 		#advance one revolution, align with the block and advance again until the block is in reach
 		steps_to_advance = 0
 		while dist_block != 'In range to catch':
+			action = forward
 			if dist_block == 'Far Object':
-				steps_to_advance = DEFAULT_ADVANCE_DISTANCE*2
+				steps_to_advance = DEFAULT_ADVANCE_DISTANCE*0.8
 			elif dist_block == 'Close Object':
-				steps_to_advance = DEFAULT_ADVANCE_DISTANCE
-			control_translation(forward, steps_to_advance, record_pos)
+				steps_to_advance = DEFAULT_ADVANCE_DISTANCE*0.8
+			elif dist_block == 'Too Close':
+				action = reverse
+				steps_to_advance = 1
+			control_translation(action, steps_to_advance, record_pos)
 			#for every advancement align with the block as much as possible
-			info_block = align_with_block(camera_pi, color_block, imu_sensor,record_pos)
-			if info_block:
+			#take an image
+			image = take_image(camera_pi)
+			info_contours = inform_block(image, color_block)
+			aligned = align_with_block(info_contours,imu_sensor,record_pos)
+			if aligned:
 				#TODO: Modify here to be able to implement path planning logic
-				area, aspect_ratio, _ = area_aspect_ratio_center(info_block)
+				print(f'moving to block detecting {info_contours}')
+				area, aspect_ratio, _ = area_aspect_ratio_center(info_contours)
 				dist_block = distance_to_block_by(area, aspect_ratio)
-		#catch the block but confirm the block is in the gripper after
+		#catch the block but confirm the block is in the gripper after and is in the ideal range
+		image = take_image(camera_pi)
+		info_contours = inform_block(image, color_block)
+		area, aspect_ratio, _ = area_aspect_ratio_center(info_contours)
+		dist_block = distance_to_block_by(area, aspect_ratio)
+		if dist_block == 'Too Close':
+			#move back to the ideal range
+			steps_to_advance = 1.5
+			control_translation(reverse, steps_to_advance, record_pos)
 		action_gripper(servo,'CLOSE')
 	return False
 
@@ -159,7 +177,7 @@ def mode_search(record_pos, camera_pi, servo, color_block, imu_sensor, block_seq
 		action_gripper(servo,'CLOSE')
 		#localize again to make sure the robot is in the right position
 		localize()
-	for value in LOCALIZE_SEQUENCE:
+	for value in SEARCH_SEQUENCE:
 		#control the rotation of the robot to search for block
 		control_rotation_imu(motor_pwm_setup, value, imu_sensor, record_pos)
 		#take an image
@@ -168,3 +186,42 @@ def mode_search(record_pos, camera_pi, servo, color_block, imu_sensor, block_seq
 		if info_contours:
 			return info_contours
 	return False
+
+try:
+	block_sequence = ['blue']
+	goal_coordinate = [(83,15),(83,15),(83,15)]
+	# Initialize GPIO pins
+	init_gpio()
+	# # Initialize camera
+	camera = init_camera()
+	# # Initialize IMU sensor
+	imu_sensor = init_serial_read()
+	# # Initialize servo
+	servo = init_servo()
+	# # Record positions
+	record_pos = []
+	for color_block in block_sequence:
+		info_block = mode_search(record_pos, camera, servo, color_block, imu_sensor, block_sequence)
+		#check if there are any blocks detected
+		if not info_block:
+			raise ValueError(f"No {color_block} block detected")
+		print(f"Found {color_block} block")
+		print(info_block)	
+		aligned = align_with_block(info_block, imu_sensor,record_pos)
+		if not aligned:
+			raise ValueError(f"Failed to align with {color_block} block")
+		print(f"Aligned with {color_block} block")
+		reached_block = move_to_block(camera, servo, imu_sensor, color_block, record_pos)
+		if not reached_block:
+			continue
+except KeyboardInterrupt:
+	print("Stopping motors")
+	#
+except Exception as error:
+    print(f"An error occurred: {error}")
+finally:
+	turn_off_motors()
+	turn_off_servo(servo)
+	camera.stop()
+	camera.close()
+	gameover()

@@ -4,55 +4,54 @@ from utilities_camera import CAMERA_MAIN_RESOLUTION
 
 #TODO: TUNE THRESHOLDS FOR RED,GREEN & BLUE
 #TODO: UNDERSTAND HOW ILLUMINATION CAN AFFECT THE MEASUREMENTS
-#GREEN
+###*COLOR RANGES
+#*GREEN
 LOWER_GREEN = np.array([45, 60, 100])#145 #155
 UPPER_GREEN = np.array([70, 255, 255])
-#RED
-LOWER_RED = np.array([0, 145, 100])
-UPPER_RED = np.array([5, 255, 255])
-#BLUE
-LOWER_BLUE = np.array([80, 65, 100])
-UPPER_BLUE = np.array([150, 255, 255])
+#lower_green = np.array([35, 50, 50])
+#upper_green = np.array([85, 255, 255])
+#*RED (Two ranges)
+# First range: Hue 0-5 (lower red)
+LOWER_RED1 = np.array([0, 145, 100])
+UPPER_RED1 = np.array([5, 255, 255])
+# Second range: Hue 160-179 (upper red)
+LOWER_RED2 = np.array([160, 145, 100])
+UPPER_RED2 = np.array([179, 255, 255])
+# LOWER_RED = np.array([0, 145, 100])
+# UPPER_RED = np.array([5, 255, 255])
 
-#BLACK
+#*BLUE
+# LOWER_BLUE = np.array([80, 65, 100])
+# UPPER_BLUE = np.array([150, 255, 255])
+#recommendation
+LOWER_BLUE = np.array([90, 95, 125])
+UPPER_BLUE = np.array([130, 255, 255])
+#*BLACK
 LOWER_BLACK = np.array([0, 0, 0])
-UPPER_BLACK = np.array([180, 255, 55])
-
-#
-FONT = cv2.FONT_HERSHEY_PLAIN
-#
-NOISY_CONTOUR_AREA = 1000 #minimum area of the contour to be considered
-PIXEL_ANGLE = 0.061 #angle in degrees that represents a pixel movement #0.0605
-CENTER_X_IMAGE = int(CAMERA_MAIN_RESOLUTION[0]//2)
-GRIPPER_COLOR = 'black'
+UPPER_BLACK = np.array([180, 100, 80])
+# Updated BLOCK_COLORS to handle red's dual ranges
 BLOCK_COLORS = {
-	'green':
-		{
-			'lower': LOWER_GREEN,
-			'upper': UPPER_GREEN
-		},
-	'red':
-		{
-			'lower': LOWER_RED,
-			'upper': UPPER_RED
-		},
-	'blue':
-		{
-			'lower': LOWER_BLUE,
-			'upper': UPPER_BLUE
-		},
-	'black':
-		{
-			'lower': LOWER_BLACK,
-			'upper': UPPER_BLACK
-		}
+    'green': {
+        'ranges': [{'lower': LOWER_GREEN, 'upper': UPPER_GREEN}]
+    },
+    'red': {
+        'ranges': [
+            {'lower': LOWER_RED1, 'upper': UPPER_RED1},
+            {'lower': LOWER_RED2, 'upper': UPPER_RED2}
+        ]
+    },
+    'blue': {
+        'ranges': [{'lower': LOWER_BLUE, 'upper': UPPER_BLUE}]
+    },
+    'black': {
+        'ranges': [{'lower': LOWER_BLACK, 'upper': UPPER_BLACK}]
+    }
 }
-
 #TODO: IMPROVE THE THRESHOLDS FOR ARROW
 LOWER_GREEN_ARROW = np.array([75, 95, 60]) #50,100,100
 UPPER_GREEN_ARROW = np.array([95, 255, 220]) #70,255,255
 
-#COLORS FOR CONTOURS
+##*COLORS FOR CONTOURS
 CIRCLE_COLOR = (255, 255, 0)
 CIRCLE_BORDER = 5
 RECT_COLOR= (128, 0, 128)
@@ -62,14 +61,19 @@ GENERAL_BORDER = 3
 CROSS_COLOR = (0, 255, 255)
 CROSS_BORDER = 2
 CROSS_LENGTH = 50
-####
-GAUSS_KERNEL =  (9,9)
-MEDIAN_BLUR_KERNEL = 9
-BLOCK_SIZE = 7
-APERTURE_SIZE = 7 #sobel kernel 7x7
-FREE_K_SIZE = 0.05
-FONT1 = cv2.FONT_HERSHEY_PLAIN
+####*FILTERS
+GAUSS_KERNEL =  (5,5)
+MEDIAN_BLUR_KERNEL = 7
+KERNEL_MORPH = np.ones((3, 3), np.uint8)
 
+###*TEXT
+FONT = cv2.FONT_HERSHEY_PLAIN
+
+###*FOR DETECTION
+GRIPPER_COLOR = 'black'
+NOISY_CONTOUR_AREA = 1000 #minimum area of the contour to be considered
+PIXEL_ANGLE = 0.061 #angle in degrees that represents a pixel movement #0.0605
+CENTER_X_IMAGE = int(CAMERA_MAIN_RESOLUTION[0]//2)
 #LOOK UP TABLE FOR DEPTH ESTIMATION
 # Lookup table data (area in cm², distance in cm)
 # DISTANCES_Y = np.array([67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 
@@ -86,16 +90,35 @@ def convert_bgr_to_hsv(image):
 	return cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
 
-def create_hsv_mask(image, lower_color, upper_color):
-	mask_HSV = cv2.inRange(image, lower_color, upper_color)
-	#result_HSV = cv2.bitwise_and(image, image, mask = mask_HSV)
-	return mask_HSV
+def create_hsv_mask(image, color):
+    # Get the color ranges from BLOCK_COLORS
+    color_info = BLOCK_COLORS[color]
+    ranges = color_info['ranges']
+    
+    # Initialize an empty mask
+    mask = np.zeros(image.shape[:2], dtype=np.uint8)
+    
+    # Apply cv2.inRange for each range and combine with bitwise OR
+    for range_info in ranges:
+        lower = range_info['lower']
+        upper = range_info['upper']
+        range_mask = cv2.inRange(image, lower, upper)
+        mask = cv2.bitwise_or(mask, range_mask)
+    
+    return mask
 
 def blurry_image(image_gray):
 	return cv2.GaussianBlur(image_gray, GAUSS_KERNEL, 0, 0, cv2.BORDER_DEFAULT)
 
 def median_blurry_filter(image_gray):
 	return cv2.medianBlur(image_gray, MEDIAN_BLUR_KERNEL)
+
+def erosion_to_dilation(image_gray):
+	erosion = cv2.morphologyEx(image_gray, cv2.MORPH_OPEN, KERNEL_MORPH)
+	return erosion
+def dilation_to_erosion(image_gray):
+	dilation = cv2.morphologyEx(image_gray, cv2.MORPH_CLOSE, KERNEL_MORPH)
+	return dilation
 def combine_stack(*images):
 	stacked_image = np.hstack(images)
 	return stacked_image
@@ -201,11 +224,16 @@ def get_orientation(tip,contours):
 	return np.arctan2(vector_direction[1], vector_direction[0])
 
 def process_image_contours(image,color):
-	hsv_image = convert_bgr_to_hsv(image)
-	mask_hsv = create_hsv_mask(hsv_image,BLOCK_COLORS[color]['lower'], BLOCK_COLORS[color]['upper'])
-	blurry_mask = median_blurry_filter(mask_hsv)
-	blurry_mask = blurry_image(mask_hsv)
-	contours = get_contours(blurry_mask)
+	#blurry_median = median_blurry_filter(mask_hsv)
+	#remove initial noise
+	blurry_mask = blurry_image(image)
+	hsv_image = convert_bgr_to_hsv(blurry_mask)
+	mask_hsv = create_hsv_mask(hsv_image,color)
+	#removing noise
+	morph_1 = erosion_to_dilation(mask_hsv)
+	#closing small holes inside the foreground objects, or small black points on the object. 
+	final_mask = dilation_to_erosion(morph_1)
+	contours = get_contours(final_mask)
 	return contours
 #TODO: Check how to filter noisy contours, areaa too small or big
 def find_block(image, color):
@@ -235,7 +263,9 @@ def area_aspect_ratio_center(info_contour):
 def get_nearest_block(info_contours):
 	areas_all = [width*height for _,_,width,height in info_contours]
 	filter_noisy_contours = [area for area in areas_all if area >= NOISY_CONTOUR_AREA]
-	return info_contours.index(max(filter_noisy_contours))
+	if len(filter_noisy_contours) == 0:
+		return False
+	return info_contours[areas_all.index(max(filter_noisy_contours))]
 
 def inform_block(image, color_block):
 	#process the image to find potential blocks
@@ -303,8 +333,10 @@ def distance_to_block_by(area, aspect_ratio):
 	else:
 		if 1 <= aspect_ratio < 3:
 			return 'Close Object'
-		if aspect_ratio > 3:
+		if 3 < aspect_ratio < 4:
 			return 'In range to catch'
+		if aspect_ratio >= 4:
+			return 'Too Close'
 
 #TODO: Check if gripper is open or close by an image
 def check_gripper_state(image):
@@ -325,7 +357,7 @@ def check_block_gripper(image, color):
 		info_contour = get_contour_box(closest_block)
 		_, aspect, center = area_aspect_ratio_center(info_contour)
 		#check if the block is in the gripper
-		if aspect > 3 and (CENTER_X_IMAGE -200 <center[0] < CENTER_X_IMAGE +200) and(560 < center[1] < CAMERA_MAIN_RESOLUTION[1]//2):
+		if aspect > 2.5 and (CENTER_X_IMAGE -200 < center[0] < CENTER_X_IMAGE +200) and(560 < center[1] < CAMERA_MAIN_RESOLUTION[1]):
 			return True
 		return False
 	#check if the block is in the gripper
