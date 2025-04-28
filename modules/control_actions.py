@@ -33,11 +33,21 @@ def transformation_robot_to_world(angle, position):
 		[0, 0, 1]
 	])
 
+#Noralize angle between [0,180] and (0,-179.9999)
+def normalize_angle(angle):
+	if angle > OFFSET_YAW:
+		angle = angle % OFFSET_YAW
+	#NORMALIZED THE ANGLE
+	if angle > OFFSET_YAW//2 and angle < OFFSET_YAW:
+		angle = angle - OFFSET_YAW
+	return angle
 
 def get_angle(vector_a):
-	dot_product = np.dot(vector_a, UNITARY_VECTOR_X)
-	angle = np.degrees(dot_product)
+	angle_dot_product = np.arccos(np.dot(vector_a, UNITARY_VECTOR_X)/(np.linalg.norm(vector_a)))
+	angle = np.degrees(angle_dot_product)
 	#NORMALIZED THE ANGLE
+	if angle > OFFSET_YAW:
+		angle = angle % OFFSET_YAW
 	if angle > OFFSET_YAW//2 and angle < OFFSET_YAW:
 		angle = angle - OFFSET_YAW
 	return angle
@@ -109,6 +119,7 @@ def control_translation(action, reference, history, args = []):
 	time.sleep(1)
 	return history
 
+#TODO: test this function once but forv now not needed
 def keep_straight_pwm(action,reference):
 	pwm_left, pwm_right = action()
 	success = 0
@@ -159,7 +170,7 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 	pwm_left_2.start(0)
 	pwm_right_1.start(0)
 	pwm_right_2.start(0)
-	while abs(error_reference) >= 1:
+	while abs(error_reference) >= 0.70:
 		yaw = read_imu_yaw_angle(sensor_imu)
 		if yaw is None:
 			continue
@@ -217,6 +228,8 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 	new_rotation = error_reference + reference
 	if new_rotation >= OFFSET_YAW:
 		new_rotation = new_rotation % OFFSET_YAW
+	if new_rotation > OFFSET_YAW//2 and new_rotation < OFFSET_YAW:
+		new_rotation = new_rotation - OFFSET_YAW
 	print(f'success performing {new_rotation}°\n')
 	pwm_left_1.stop()
 	pwm_left_2.stop()

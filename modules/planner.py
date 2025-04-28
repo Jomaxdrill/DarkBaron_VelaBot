@@ -4,12 +4,16 @@ from utilities_camera import *
 from utilities_record import *
 from utilities_perception import *
 from basic_init import *
-
+import copy
 TOTAL_BLOCKS = 1
 LOCALIZE_SEQUENCE = [0,90,180,-90,0]
-SEARCH_SEQUENCE = [0,20,-20]
-EDGE_MAP = 30.48 #cm
+SEARCH_SEQUENCE = [0,20,-20,45,-45,0]
+EDGE_ZONE_BLOCK = 30.48 #cm
 TOTAL_MAP = (115, 98)
+OFFSET_ANGLE_image = 2 #1.5 #when  angle image is negative add the value, positive subtract
+OFFSET_TO_GRIPPER = 23 #distance from imu to gripper center of grasping
+OFFEST_SONAR_IMU = 10 #cm
+#TODO: Maybe give mean of sonar distance of 10 measurements 
 #SEARCH_SEQUENCE = [0,20,-20,45,-45,90,-90]
 # TOTAL_MAP = (365.76,365.76) #edge of total square map
 # OFFSET_LOCATE = 2 #cm
@@ -38,7 +42,7 @@ def first_planner(block_sequence, goal_coordinates):
 		reached_block = move_to_block(camera, servo, imu_sensor, block_sequence[-1], record_pos)
 		if not reached_block:
 			continue
-		take_secure_block(camera, block_sequence[-1], record_pos)
+		getting_block = take_secure_block(camera, block_sequence[-1], record_pos)
 		if not getting_block:
 			continue
 		move_to_goal(servo, imu_sensor, goal_coordinates[-1], record_pos, block_sequence)
@@ -48,22 +52,22 @@ def first_planner(block_sequence, goal_coordinates):
 def create_goal_coordinate(X_o, Y_o):
 	#TODO: Maybe one time check how to do this dynamically, it seems like a pascal tree related problem
 	goals_blocks = [
-		(X_o + 0.5*EDGE_MAP,Y_o - 0.5*EDGE_MAP), #first block
-		(X_o + 0.5*EDGE_MAP,Y_o - 1.5*EDGE_MAP), #second block
-		(X_o + 1.5*EDGE_MAP,Y_o - 0.5*EDGE_MAP), #third block
-		(X_o + 0.5*EDGE_MAP,Y_o - 2.5*EDGE_MAP), #fourth block
-		(X_o + 1.5*EDGE_MAP,Y_o - 1.5*EDGE_MAP), #fifth block
-		(X_o + 2.5*EDGE_MAP,Y_o - 0.5*EDGE_MAP), #sixth block
-		(X_o + 1.5*EDGE_MAP,Y_o - 2.5*EDGE_MAP), #seventh block
-		(X_o + 2.5*EDGE_MAP,Y_o - 1.5*EDGE_MAP), #eighth block
-		(X_o + 2.5*EDGE_MAP,Y_o - 2.5*EDGE_MAP), #ninth block
+		(X_o + 0.5*EDGE_ZONE_BLOCK,Y_o - 0.5*EDGE_ZONE_BLOCK), #first block
+		(X_o + 0.5*EDGE_ZONE_BLOCK,Y_o - 1.5*EDGE_ZONE_BLOCK), #second block
+		(X_o + 1.5*EDGE_ZONE_BLOCK,Y_o - 0.5*EDGE_ZONE_BLOCK), #third block
+		(X_o + 0.5*EDGE_ZONE_BLOCK,Y_o - 2.5*EDGE_ZONE_BLOCK), #fourth block
+		(X_o + 1.5*EDGE_ZONE_BLOCK,Y_o - 1.5*EDGE_ZONE_BLOCK), #fifth block
+		(X_o + 2.5*EDGE_ZONE_BLOCK,Y_o - 0.5*EDGE_ZONE_BLOCK), #sixth block
+		(X_o + 1.5*EDGE_ZONE_BLOCK,Y_o - 2.5*EDGE_ZONE_BLOCK), #seventh block
+		(X_o + 2.5*EDGE_ZONE_BLOCK,Y_o - 1.5*EDGE_ZONE_BLOCK), #eighth block
+		(X_o + 2.5*EDGE_ZONE_BLOCK,Y_o - 2.5*EDGE_ZONE_BLOCK), #ninth block
 		]
 	return goals_blocks[::-1] #return the last element of the list
 def localize(imu_sensor, record_pos):
 	distances_calibration = []
 	for value in LOCALIZE_SEQUENCE:
 		control_rotation_imu(motor_pwm_setup, value, imu_sensor,record_pos)
-		distances_calibration.append(distance_sonar() +10) #10 cm offset in x direction to imu
+		distances_calibration.append(distance_sonar() + OFFEST_SONAR_IMU) #10 cm offset in x direction to imu
 		print(f'localize {value}')
 	hor_distance = distances_calibration[0] + distances_calibration[2]
 	ver_distance = distances_calibration[1] + distances_calibration[3]
@@ -81,6 +85,7 @@ def align_with_block(info_block, imu_sensor, record_pos):
 	_, _,center = area_aspect_ratio_center(info_block)
 	#calculate the angle of the block with respect to the center of the image
 	angle_block = angle_block_gripper_by(center)
+	angle_block = angle_block - OFFSET_ANGLE_image if angle_block <= 0 else angle_block + OFFSET_ANGLE_image
 	print(f'angle: {angle_block}')
 	current_angle = read_imu_yaw_angle(imu_sensor)
 	print(f'current angle is {current_angle}')
@@ -114,9 +119,9 @@ def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos):
 		while dist_block != 'In range to catch':
 			action = forward
 			if dist_block == 'Far Object':
-				steps_to_advance = DEFAULT_ADVANCE_DISTANCE*0.8
+				steps_to_advance = DEFAULT_ADVANCE_DISTANCE*2
 			elif dist_block == 'Close Object':
-				steps_to_advance = DEFAULT_ADVANCE_DISTANCE*0.8
+				steps_to_advance = DEFAULT_ADVANCE_DISTANCE*0.25
 			elif dist_block == 'Too Close':
 				action = reverse
 				steps_to_advance = 1
@@ -125,15 +130,27 @@ def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos):
 			#take an image
 			image = take_image(camera_pi)
 			info_contours = inform_block(image, color_block)
+			if not info_contours:
+				print('while reaching the block we lost track of it')
+				return False
 			aligned = align_with_block(info_contours,imu_sensor,record_pos)
 			if aligned:
 				#TODO: Modify here to be able to implement path planning logic
+				#take again after aligned to check for distance aligned
+				image = take_image(camera_pi)
+				info_contours = inform_block(image, color_block)
+				if not info_contours:
+					print('while reaching the block we lost track of it')
+					return False
 				print(f'moving to block detecting {info_contours}')
 				area, aspect_ratio, _ = area_aspect_ratio_center(info_contours)
 				dist_block = distance_to_block_by(area, aspect_ratio)
 		#catch the block but confirm the block is in the gripper after and is in the ideal range
 		image = take_image(camera_pi)
 		info_contours = inform_block(image, color_block)
+		if not info_contours:
+			print('Ohh no probably we made the block fall it was so close T-T')
+			return False
 		area, aspect_ratio, _ = area_aspect_ratio_center(info_contours)
 		dist_block = distance_to_block_by(area, aspect_ratio)
 		if dist_block == 'Too Close':
@@ -141,9 +158,9 @@ def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos):
 			steps_to_advance = 1.5
 			control_translation(reverse, steps_to_advance, record_pos)
 		action_gripper(servo,'CLOSE')
-	return False
+	return True
 
-def take_secure_block(camera_pi, color_block,record_pos):
+def take_secure_block(camera_pi, color_block, record_pos):
 	#take an image
 	image = take_image(camera_pi)
 	#verify the block is in the gripper
@@ -152,22 +169,31 @@ def take_secure_block(camera_pi, color_block,record_pos):
 	if block_caught:
 		Steps_to_advance = DEFAULT_ADVANCE_DISTANCE*2
 		control_translation(reverse, Steps_to_advance , record_pos)
+		return True
+	return False
 
 def move_to_goal(servo,camera_pi, imu_sensor, goal_coordinate, record_pos, block_sequence):
 	#turn to next goal location
-	vector_to_goal = get_vector(record_pos[-1], goal_coordinate)
+	vector_to_goal = get_vector(record_pos[-1], goal_coordinate[-1])
+	unitary_vector_goal = np.array(vector_to_goal/np.linalg.norm(vector_to_goal))
+	#consider the offset of the gripper
+	vector_to_goal = tuple(unitary_vector_goal*(np.linalg.norm(vector_to_goal) - OFFSET_TO_GRIPPER))
 	angle_to_goal = get_angle(vector_to_goal)
+	print(f'angle to goal is {angle_to_goal}')
+	print(f'vector to goal is {vector_to_goal}')
 	#turn to the goal location
 	control_rotation_imu(motor_pwm_setup, angle_to_goal, imu_sensor)
 	#TODO: path planning to goal logic
 	steps_to_advance = np.linalg.norm(vector_to_goal)
+	print(f'steps to advance is {steps_to_advance}')
 	control_translation(forward, steps_to_advance, record_pos)
 	#open gripper
 	action_gripper(servo,'OPEN')
 	block_placed = block_sequence.pop()
 	goal_coordinate.pop()
+	print(f'block placed is {block_placed}')
 	#send email to notify the block was placed
-	return send_email(camera_pi, block_placed)
+	#return send_email(camera_pi, block_placed)
 def mode_search(record_pos, camera_pi, servo, color_block, imu_sensor, block_sequence):
 	#when the robot at least has delivered one block going back to map
 	if len(block_sequence) < TOTAL_BLOCKS:
@@ -189,7 +215,8 @@ def mode_search(record_pos, camera_pi, servo, color_block, imu_sensor, block_seq
 
 try:
 	block_sequence = ['blue']
-	goal_coordinate = [(83,15),(83,15),(83,15)]
+	bl_seq_copy = copy.deepcopy(block_sequence)
+	goal_coordinate = [(0,90)]#[(83,15),(83,15),(83,15)]
 	# Initialize GPIO pins
 	init_gpio()
 	# # Initialize camera
@@ -201,7 +228,7 @@ try:
 	# # Record positions
 	record_pos = []
 	for color_block in block_sequence:
-		info_block = mode_search(record_pos, camera, servo, color_block, imu_sensor, block_sequence)
+		info_block = mode_search(record_pos, camera, servo, color_block, imu_sensor, bl_seq_copy)
 		#check if there are any blocks detected
 		if not info_block:
 			raise ValueError(f"No {color_block} block detected")
@@ -213,7 +240,13 @@ try:
 		print(f"Aligned with {color_block} block")
 		reached_block = move_to_block(camera, servo, imu_sensor, color_block, record_pos)
 		if not reached_block:
-			continue
+			raise ValueError(f"Failed to reach {color_block} block")
+		print(f"Reached {color_block} block")
+		getting_block = take_secure_block(camera, block_sequence[-1], record_pos)
+		if not getting_block:
+			raise ValueError(f"Failed to grab {color_block} block")
+		move_to_goal(servo, camera, imu_sensor, goal_coordinate , record_pos, bl_seq_copy)
+	save_file_info(record_pos)
 except KeyboardInterrupt:
 	print("Stopping motors")
 	#

@@ -1,5 +1,6 @@
 from constants_pi import *
 import RPi.GPIO as gpio
+import cv2
 import time
 import numpy as np
 
@@ -11,7 +12,10 @@ def record_count(encoder,counter,button):
 		button = int(gpio.input(encoder))
 		counter += 1
 		print(counter)
-
+def init_sonar():
+    #*setup sonar sensor
+	gpio.setup(TRIG, gpio.OUT)
+	gpio.setup(ECHO, gpio.IN)
 #sonar sensor
 def distance_sonar():
 	#Ensure output has no false value
@@ -35,9 +39,8 @@ def distance_sonar():
 	#calculate the distance in cm
 	distance = (pulse_duration * SPEED_SOUND) / 2
 	distance = round(distance, 2)
-
+	time.sleep(0.1)
 	return distance
-
 
 #imu sensor
 #TODO: check why yaw sends None

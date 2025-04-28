@@ -24,7 +24,7 @@ UPPER_RED2 = np.array([179, 255, 255])
 # LOWER_BLUE = np.array([80, 65, 100])
 # UPPER_BLUE = np.array([150, 255, 255])
 #recommendation
-LOWER_BLUE = np.array([90, 95, 125])
+LOWER_BLUE = np.array([90, 120, 125])
 UPPER_BLUE = np.array([130, 255, 255])
 #*BLACK
 LOWER_BLACK = np.array([0, 0, 0])
@@ -71,8 +71,8 @@ FONT = cv2.FONT_HERSHEY_PLAIN
 
 ###*FOR DETECTION
 GRIPPER_COLOR = 'black'
-NOISY_CONTOUR_AREA = 1000 #minimum area of the contour to be considered
-PIXEL_ANGLE = 0.061 #angle in degrees that represents a pixel movement #0.0605
+NOISY_CONTOUR_AREA = 450 #minimum area of the contour to be considered
+PIXEL_ANGLE = 0.062 #angle in degrees that represents a pixel movement #0.0605
 CENTER_X_IMAGE = int(CAMERA_MAIN_RESOLUTION[0]//2)
 #LOOK UP TABLE FOR DEPTH ESTIMATION
 # Lookup table data (area in cm², distance in cm)
@@ -262,7 +262,8 @@ def area_aspect_ratio_center(info_contour):
 
 def get_nearest_block(info_contours):
 	areas_all = [width*height for _,_,width,height in info_contours]
-	filter_noisy_contours = [area for area in areas_all if area >= NOISY_CONTOUR_AREA]
+	#aspect_ratios = [width/height for _,_,width,height in info_contours]
+	filter_noisy_contours = [area for idx, area in enumerate(areas_all) if area >= NOISY_CONTOUR_AREA]
 	if len(filter_noisy_contours) == 0:
 		return False
 	return info_contours[areas_all.index(max(filter_noisy_contours))]
@@ -292,10 +293,9 @@ def show_area(image, block_color):
 	aprox_distance = distance_to_block_by(area, aspect_ratio)
 	aprox_angle = angle_block_gripper_by(center)
 	image_area = cv2.putText(block_shape,f'Area: {area} pix2',(10,50),FONT,2,(0,255,255),2)
-	# text_distance = round(aprox_distance,2) if aprox_distance is not None else aprox_distance
 	image_distance = cv2.putText(image_area,f'dist: {aprox_distance} cm',(10,100),FONT,2,(255,0,255),2)
 	image_aspect = cv2.putText(image_distance,f'aspect: {round(aspect_ratio,3)}',(10,150),FONT,2,(255,255,0),2)
-	image_angle = cv2.putText(image_aspect,f'angle: {round(aprox_angle,2)} deg',(10,200),FONT,2,(255,255,128),2)
+	image_angle = cv2.putText(image_aspect,f'angle: {round(aprox_angle,2)} deg',(10,200),FONT,2,(0,255,0),2)
 	return image_angle
 
 #get the angle in degrees from the center of the rectangle to the center of the image
@@ -353,14 +353,13 @@ def check_gripper_state(image):
 #check if block is in the gripper
 def check_block_gripper(image, color):
 	closest_block = inform_block(image, color)
+	print(f'closest block: {closest_block}')
 	if closest_block:
-		info_contour = get_contour_box(closest_block)
-		_, aspect, center = area_aspect_ratio_center(info_contour)
+		_, aspect, center = area_aspect_ratio_center(closest_block)
 		#check if the block is in the gripper
 		if aspect > 2.5 and (CENTER_X_IMAGE -200 < center[0] < CENTER_X_IMAGE +200) and(560 < center[1] < CAMERA_MAIN_RESOLUTION[1]):
 			return True
 		return False
-	#check if the block is in the gripper
 	return False
 
 #TODO: Play with homography to generate a bird view of the robot

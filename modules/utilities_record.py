@@ -22,7 +22,9 @@ toAdd = ['pocres94@gmail.com','jcrespo@umd.edu']
 def send_email(camera, color):
 	# Define time stamp & record an image
 	unix_timestamp= time.time()
-	pic_time = datetime.fromtimestamp(unix_timestamp).strftime('%Y%m%d%H%M%S')
+	event_time = datetime.fromtimestamp(unix_timestamp)
+	pic_time = event_time.strftime('%Y%m%d%H%M%S')
+	pic_formatted = event_time.strftime('%Y-%m-%d %H:%M:%S')
 	image_camera = take_image(camera)
 	success , image_encoded = cv2.imencode('.jpg', image_camera)
 	if not success:
@@ -37,7 +39,7 @@ def send_email(camera, color):
 	msg['To'] = ', '.join(toAdd)
 	msg.preamble = f"Block color {color} delivered"
 	# Email text
-	body = MIMEText("In construction zone at " + pic_time)
+	body = MIMEText("In construction zone at " + pic_formatted)
 	msg.attach(body)
 	# Attach image
 	attach_image = MIMEImage(img_data)
