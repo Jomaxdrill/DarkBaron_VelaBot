@@ -1,96 +1,8 @@
 import cv2
 import numpy as np
-from utilities_camera import CAMERA_MAIN_RESOLUTION
+from constants_perception import *
 
-#TODO: TUNE THRESHOLDS FOR RED,GREEN & BLUE
-#TODO: UNDERSTAND HOW ILLUMINATION CAN AFFECT THE MEASUREMENTS
-###*COLOR RANGES
-#*GREEN
-LOWER_GREEN = np.array([35, 80, 100])#145 #155
-UPPER_GREEN = np.array([85, 255, 255])
-#lower_green = np.array([35, 50, 50])
-#upper_green = np.array([85, 255, 255])
-#*RED (Two ranges)
-# First range: Hue 0-5 (lower red)
-LOWER_RED1 = np.array([0, 145, 100])
-UPPER_RED1 = np.array([5, 255, 255])
-# Second range: Hue 160-179 (upper red)
-LOWER_RED2 = np.array([160, 145, 100])
-UPPER_RED2 = np.array([179, 255, 255])
-# LOWER_RED = np.array([0, 145, 100])
-# UPPER_RED = np.array([5, 255, 255])
 
-#*BLUE
-# LOWER_BLUE = np.array([80, 65, 100])
-# UPPER_BLUE = np.array([150, 255, 255])
-#recommendation
-LOWER_BLUE = np.array([90, 120, 125])
-UPPER_BLUE = np.array([130, 255, 255])
-#*BLACK
-LOWER_BLACK = np.array([0, 0, 0])
-UPPER_BLACK = np.array([180, 100, 80])
-# Updated BLOCK_COLORS to handle red's dual ranges
-BLOCK_COLORS = {
-    'green': {
-        'ranges': [{'lower': LOWER_GREEN, 'upper': UPPER_GREEN}]
-    },
-    'red': {
-        'ranges': [
-            {'lower': LOWER_RED1, 'upper': UPPER_RED1},
-            {'lower': LOWER_RED2, 'upper': UPPER_RED2}
-        ]
-    },
-    'blue': {
-        'ranges': [{'lower': LOWER_BLUE, 'upper': UPPER_BLUE}]
-    },
-    'black': {
-        'ranges': [{'lower': LOWER_BLACK, 'upper': UPPER_BLACK}]
-    }
-}
-#TODO: IMPROVE THE THRESHOLDS FOR ARROW
-LOWER_GREEN_ARROW = np.array([75, 95, 60]) #50,100,100
-UPPER_GREEN_ARROW = np.array([95, 255, 220]) #70,255,255
-
-##*COLORS FOR CONTOURS
-CIRCLE_COLOR = (255, 255, 0)
-CIRCLE_BORDER = 5
-RECT_COLOR= (128, 0, 128)
-RECT_BORDER = 2
-GENERAL = (255, 0, 0)
-GENERAL_BORDER = 3
-CROSS_COLOR = (0, 255, 255)
-CROSS_BORDER = 2
-CROSS_LENGTH = 50
-COLORS_TEXTS = {
-	'green': (0, 255, 0),
-	'red': (0, 0, 255),
-	'blue': (255, 0, 0),	
-	'black': (0, 0, 0),
- 	}
-####*FILTERS
-GAUSS_KERNEL =  (5,5)
-MEDIAN_BLUR_KERNEL = 7
-KERNEL_MORPH = np.ones((3, 3), np.uint8)
-
-###*TEXT
-FONT = cv2.FONT_HERSHEY_PLAIN
-
-###*FOR DETECTION
-GRIPPER_COLOR = 'black'
-NOISY_CONTOUR_AREA = 450 #minimum area of the contour to be considered
-PIXEL_ANGLE = 0.062 #angle in degrees that represents a pixel movement #0.0605
-CENTER_X_IMAGE = int(CAMERA_MAIN_RESOLUTION[0]//2)
-#LOOK UP TABLE FOR DEPTH ESTIMATION
-# Lookup table data (area in cm², distance in cm)
-# DISTANCES_Y = np.array([67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 
-#                         39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16])
-# AREAS_X = np.array([2400, 2542, 2583, 2646, 2688, 2925, 2970, 2992, 3220, 3337, 3456, 3577, 3626, 3675, 3850, 3978, 4240, 4374, 4510,
-#                     4704, 4902, 5192, 5310, 5460, 5828, 6048, 6336, 6666, 7072, 7314, 7776, 8103, 8562, 9009, 9360, 10044, 10668,
-#                     10920, 12193, 13080, 13630, 14453, 15500, 16480, 17596, 19203, 20585, 22440, 24375, 26187, 28408, 22605])
-
-AREAS_X = (16848, 17976, 19314, 20520, 22066, 23912, 25452, 28329, 30360, 33120, 35787, 36729, 37350,
-		38566, 39083, 39991, 40512, 41175, 41211, 41600, 40752)
-DISTANCES_Y = (30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10)
 
 def convert_bgr_to_hsv(image):
 	return cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -100,10 +12,10 @@ def create_hsv_mask(image, color):
     # Get the color ranges from BLOCK_COLORS
     color_info = BLOCK_COLORS[color]
     ranges = color_info['ranges']
-    
+
     # Initialize an empty mask
     mask = np.zeros(image.shape[:2], dtype=np.uint8)
-    
+
     # Apply cv2.inRange for each range and combine with bitwise OR
     for range_info in ranges:
         lower = range_info['lower']
@@ -347,6 +259,56 @@ def distance_to_block_by(area, aspect_ratio):
 				return 'Too Close'
 	else:
 		return 'Far Object'
+
+def obtain_distance(color, aspect_ratio, area):
+    channel = DISTANCE_RANGES[color]
+    if not channel:
+        raise Exception (f"Color '{color}' not found in distance ranges.")
+    if area <= 0:
+        return 'Away'
+    if aspect_ratio < 0.6:
+        return 'Away'
+    if 0.6<= aspect_ratio <= 0.7:
+        # Binary search or linear interpolation over 'low_ar'
+        area_dist_list = channel['low_ar']
+        if area <= area_dist_list[0][0]:
+            return 'Away'
+        if area >= area_dist_list[-1][0]:
+            return 'Close'
+        for idx in range(len(area_dist_list) - 1):
+            a1, d1 = area_dist_list[idx]
+            a2, d2 = area_dist_list[idx + 1]
+            if a1 <= area <= a2 or a2 <= area <= a1:
+                dist_aprox = (d1 + d2) // 2
+                break
+        if area_dist_list[0][1]<= dist_aprox <=area_dist_list[11][1]:
+            return 'Remote'
+        elif area_dist_list[12][1]<= dist_aprox <=area_dist_list[22][1]:
+            return 'Far'
+        #Near
+        elif area_dist_list[12][1]<= dist_aprox <=area_dist_list[22][1]:
+            return dist_aprox
+
+    if aspect_ratio > 0.7:
+        if aspect_ratio >=6:
+            return 'Collide'
+        if 3 <= aspect_ratio <= 4:
+            return 'Catch'
+        # Binary search or linear interpolation over 'low_ar'
+        ap_dist_list = channel['high_ar']
+        if aspect_ratio <= ap_dist_list[0][0]:
+            return 'Near'
+        if aspect_ratio >= ap_dist_list[-1][0]:
+            return 'Collide'
+        for idx in range(len(ap_dist_list) - 1):
+            a1, d1 = ap_dist_list[idx]
+            a2, d2 = ap_dist_list[idx + 1]
+            if a1 <= aspect_ratio <= a2 or a2 <= aspect_ratio <= a1:
+                dist_aprox = (d1 + d2) // 2
+                break
+        if ap_dist_list[0][1]<= dist_aprox <=ap_dist_list[11][1]:
+            return dist_aprox
+
 
 #TODO: Check if gripper is open or close by an image
 def check_gripper_state(image):
