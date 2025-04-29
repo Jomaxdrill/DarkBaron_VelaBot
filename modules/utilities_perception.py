@@ -6,8 +6,8 @@ from utilities_camera import CAMERA_MAIN_RESOLUTION
 #TODO: UNDERSTAND HOW ILLUMINATION CAN AFFECT THE MEASUREMENTS
 ###*COLOR RANGES
 #*GREEN
-LOWER_GREEN = np.array([45, 60, 100])#145 #155
-UPPER_GREEN = np.array([70, 255, 255])
+LOWER_GREEN = np.array([35, 80, 100])#145 #155
+UPPER_GREEN = np.array([85, 255, 255])
 #lower_green = np.array([35, 50, 50])
 #upper_green = np.array([85, 255, 255])
 #*RED (Two ranges)
@@ -61,6 +61,12 @@ GENERAL_BORDER = 3
 CROSS_COLOR = (0, 255, 255)
 CROSS_BORDER = 2
 CROSS_LENGTH = 50
+COLORS_TEXTS = {
+	'green': (0, 255, 0),
+	'red': (0, 0, 255),
+	'blue': (255, 0, 0),	
+	'black': (0, 0, 0),
+ 	}
 ####*FILTERS
 GAUSS_KERNEL =  (5,5)
 MEDIAN_BLUR_KERNEL = 7
@@ -236,16 +242,15 @@ def process_image_contours(image,color):
 	contours = get_contours(final_mask)
 	return contours
 #TODO: Check how to filter noisy contours, areaa too small or big
-def find_block(image, color):
+def find_block(image, color, draw=False):
 	contours = process_image_contours(image,color)
 	print(f'contours found: {len(contours)}')
 	info_contours = [ get_contour_box(cnt) for cnt in contours ]
 	image_to_draw = image.copy()
 	#determine what to do
-	for inf_cnt in info_contours:
-		image_to_draw = draw_min_enclosing_rectangle(image_to_draw, inf_cnt)
-	# image_block_detected = draw_min_enclosing_rectangle(image, info_contour)
-	# image_contours = draw_contours(image, contours)
+	if draw:
+		for inf_cnt in info_contours:
+			image_to_draw = draw_min_enclosing_rectangle(image_to_draw, inf_cnt)
 	return image_to_draw, info_contours
 
 
@@ -260,10 +265,13 @@ def area_aspect_ratio_center(info_contour):
 	center = (center_x,center_y)
 	return area, aspect_ratio,center
 
-def get_nearest_block(info_contours):
+def get_nearest_block(info_contours, pending = False):
 	areas_all = [width*height for _,_,width,height in info_contours]
-	#aspect_ratios = [width/height for _,_,width,height in info_contours]
-	filter_noisy_contours = [area for idx, area in enumerate(areas_all) if area >= NOISY_CONTOUR_AREA]
+	#if we get in a scenario where there is a block missing but probably is too far to catch priorize the first max find
+	if pending:
+		return info_contours[areas_all.index(max(areas_all))]
+	aspect_ratios = [width/height for _,_,width,height in info_contours]
+	filter_noisy_contours = [area for idx, area in enumerate(areas_all) if area >= NOISY_CONTOUR_AREA or aspect_ratios[idx] <= 4]
 	if len(filter_noisy_contours) == 0:
 		return False
 	return info_contours[areas_all.index(max(filter_noisy_contours))]
@@ -278,24 +286,24 @@ def inform_block(image, color_block):
 		return target_block
 	return False
 
-def show_area(image, block_color):
-	block_shape, info_contours = find_block(image, block_color)
+def show_area(image, color_block, text_align = 10):
+	block_shape, info_contours = find_block(image, color_block, True)
 	# print(f'image shape: {image.shape}')
 	# # plt.imshow(block_shape)
 	# # plt.show()
 	# print("Running tests...")
 	if len(info_contours) == 0:
 		return block_shape
-	block_test = info_contours[0]
+	block_test = get_nearest_block(info_contours)
 	area, aspect_ratio,center = area_aspect_ratio_center(block_test)
 	#print(f'area: {area}, aspect ratio: {aspect_ratio}, center: {center}')
 	#image_center = draw_center_image(block_test)
 	aprox_distance = distance_to_block_by(area, aspect_ratio)
 	aprox_angle = angle_block_gripper_by(center)
-	image_area = cv2.putText(block_shape,f'Area: {area} pix2',(10,50),FONT,2,(0,255,255),2)
-	image_distance = cv2.putText(image_area,f'dist: {aprox_distance} cm',(10,100),FONT,2,(255,0,255),2)
-	image_aspect = cv2.putText(image_distance,f'aspect: {round(aspect_ratio,3)}',(10,150),FONT,2,(255,255,0),2)
-	image_angle = cv2.putText(image_aspect,f'angle: {round(aprox_angle,2)} deg',(10,200),FONT,2,(0,255,0),2)
+	image_area = cv2.putText(block_shape,f'Area: {area} pix2',(text_align,50),FONT,2,COLORS_TEXTS[color_block],2)
+	image_distance = cv2.putText(image_area,f'dist: {aprox_distance} cm',(text_align,100),FONT,2,COLORS_TEXTS[color_block],2)
+	image_aspect = cv2.putText(image_distance,f'aspect: {round(aspect_ratio,3)}',(text_align,150),FONT,2,COLORS_TEXTS[color_block],2)
+	image_angle = cv2.putText(image_aspect,f'angle: {round(aprox_angle,2)} deg',(text_align,200),FONT,2,COLORS_TEXTS[color_block],2)
 	return image_angle
 
 #get the angle in degrees from the center of the rectangle to the center of the image
@@ -330,13 +338,15 @@ def distance_to_block_by(area, aspect_ratio):
 			elif AREAS_X[idx] < area < AREAS_X[idx + 1]:  # Area is between AREAS_X[idx] and AREAS_X[idx+1]
 				# Return the average of the corresponding DISTANCES_Y
 				return round( (DISTANCES_Y[idx] + DISTANCES_Y[idx + 1]) / 2 ,2)
+	elif area >= NOISY_CONTOUR_AREA:
+			if 1 <= aspect_ratio < 3:
+				return 'Close Object'
+			if 3 < aspect_ratio < 4:
+				return 'In range to catch'
+			if aspect_ratio >= 4:
+				return 'Too Close'
 	else:
-		if 1 <= aspect_ratio < 3:
-			return 'Close Object'
-		if 3 < aspect_ratio < 4:
-			return 'In range to catch'
-		if aspect_ratio >= 4:
-			return 'Too Close'
+		return 'Far Object'
 
 #TODO: Check if gripper is open or close by an image
 def check_gripper_state(image):
@@ -357,7 +367,7 @@ def check_block_gripper(image, color):
 	if closest_block:
 		_, aspect, center = area_aspect_ratio_center(closest_block)
 		#check if the block is in the gripper
-		if aspect > 2.5 and (CENTER_X_IMAGE -200 < center[0] < CENTER_X_IMAGE +200) and(560 < center[1] < CAMERA_MAIN_RESOLUTION[1]):
+		if 1.6 < aspect < 2.8 and (CENTER_X_IMAGE -200 < center[0] < CENTER_X_IMAGE +200) and(560 < center[1] < CAMERA_MAIN_RESOLUTION[1]):
 			return True
 		return False
 	return False

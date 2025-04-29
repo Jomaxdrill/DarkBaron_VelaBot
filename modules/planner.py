@@ -10,9 +10,9 @@ LOCALIZE_SEQUENCE = [0,90,180,-90,0]
 SEARCH_SEQUENCE = [0,20,-20,45,-45,0]
 EDGE_ZONE_BLOCK = 30.48 #cm
 TOTAL_MAP = (115, 98)
-OFFSET_ANGLE_image = 2 #1.5 #when  angle image is negative add the value, positive subtract
+OFFSET_ANGLE_image = 0.5 #1.5 #when  angle image is negative add the value, positive subtract
 OFFSET_TO_GRIPPER = 23 #distance from imu to gripper center of grasping
-OFFEST_SONAR_IMU = 10 #cm
+OFFEST_SONAR_IMU = 8.5 #cm
 #TODO: Maybe give mean of sonar distance of 10 measurements 
 #SEARCH_SEQUENCE = [0,20,-20,45,-45,90,-90]
 # TOTAL_MAP = (365.76,365.76) #edge of total square map
@@ -157,10 +157,10 @@ def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos):
 			#move back to the ideal range
 			steps_to_advance = 1.5
 			control_translation(reverse, steps_to_advance, record_pos)
-		action_gripper(servo,'CLOSE')
 	return True
 
 def take_secure_block(camera_pi, color_block, record_pos):
+	action_gripper(servo,'CLOSE')
 	#take an image
 	image = take_image(camera_pi)
 	#verify the block is in the gripper
@@ -197,12 +197,15 @@ def move_to_goal(servo,camera_pi, imu_sensor, goal_coordinate, record_pos, block
 def mode_search(record_pos, camera_pi, servo, color_block, imu_sensor, block_sequence):
 	#when the robot at least has delivered one block going back to map
 	if len(block_sequence) < TOTAL_BLOCKS:
-		steps_to_advance = DEFAULT_ADVANCE_DISTANCE*2
+		steps_to_advance = DEFAULT_ADVANCE_DISTANCE/2
 		control_translation(reverse, steps_to_advance , record_pos)
 		#close gripper
 		action_gripper(servo,'CLOSE')
 		#localize again to make sure the robot is in the right position
-		localize()
+		print(f'TIME TO RECOLIZE GO TO POSITION 0 , LOOKING NOW FOR {color_block}')
+		# localize()
+		control_rotation_imu(motor_pwm_setup, 0, imu_sensor, record_pos)
+
 	for value in SEARCH_SEQUENCE:
 		#control the rotation of the robot to search for block
 		control_rotation_imu(motor_pwm_setup, value, imu_sensor, record_pos)
@@ -214,7 +217,7 @@ def mode_search(record_pos, camera_pi, servo, color_block, imu_sensor, block_seq
 	return False
 
 try:
-	block_sequence = ['blue']
+	block_sequence = ['green']
 	bl_seq_copy = copy.deepcopy(block_sequence)
 	goal_coordinate = [(0,90)]#[(83,15),(83,15),(83,15)]
 	# Initialize GPIO pins
@@ -225,6 +228,7 @@ try:
 	imu_sensor = init_serial_read()
 	# # Initialize servo
 	servo = init_servo()
+	action_gripper(servo,'OPEN')
 	# # Record positions
 	record_pos = []
 	for color_block in block_sequence:
@@ -251,7 +255,7 @@ except KeyboardInterrupt:
 	print("Stopping motors")
 	#
 except Exception as error:
-    print(f"An error occurred: {error}")
+	print(f"An error occurred: {error}")
 finally:
 	turn_off_motors()
 	turn_off_servo(servo)

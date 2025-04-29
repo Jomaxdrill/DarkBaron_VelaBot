@@ -12,8 +12,8 @@ MIN_RESOLUTION_LIN = DEFAULT_ADVANCE_DISTANCE / STEPS #cm aprox watch means adva
 MIN_RESOLUTION_ROT = 4.5 #degrees aprox watch means rotate 1 step of encoder
 
 K_linear = 1.25
-K_ROT_IMU = 1.1
-K_D_ROT_IMU = 1.175#1.175
+K_ROT_IMU = 1.2
+K_D_ROT_IMU = 1.145#1.175
 ERROR_STEPS = 1
 
 
@@ -170,7 +170,7 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 	pwm_left_2.start(0)
 	pwm_right_1.start(0)
 	pwm_right_2.start(0)
-	while abs(error_reference) >= 0.70:
+	while abs(error_reference) >= 0.65:
 		yaw = read_imu_yaw_angle(sensor_imu)
 		if yaw is None:
 			continue
