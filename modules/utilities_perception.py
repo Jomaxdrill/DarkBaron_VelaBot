@@ -2,8 +2,6 @@ import cv2
 import numpy as np
 from constants_perception import *
 
-
-
 def convert_bgr_to_hsv(image):
 	return cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -183,7 +181,7 @@ def get_nearest_block(info_contours, pending = False):
 	if pending:
 		return info_contours[areas_all.index(max(areas_all))]
 	aspect_ratios = [width/height for _,_,width,height in info_contours]
-	filter_noisy_contours = [area for idx, area in enumerate(areas_all) if area >= NOISY_CONTOUR_AREA or aspect_ratios[idx] <= 4]
+	filter_noisy_contours = [area for idx, area in enumerate(areas_all) if area >= NOISY_CONTOUR_AREA or aspect_ratios[idx] <=6 ]
 	if len(filter_noisy_contours) == 0:
 		return False
 	return info_contours[areas_all.index(max(filter_noisy_contours))]
@@ -210,7 +208,7 @@ def show_area(image, color_block, text_align = 10):
 	area, aspect_ratio,center = area_aspect_ratio_center(block_test)
 	#print(f'area: {area}, aspect ratio: {aspect_ratio}, center: {center}')
 	#image_center = draw_center_image(block_test)
-	aprox_distance = distance_to_block_by(area, aspect_ratio)
+	aprox_distance = obtain_distance(color_block, aspect_ratio, area)#distance_to_block_by(area, aspect_ratio)
 	aprox_angle = angle_block_gripper_by(center)
 	image_area = cv2.putText(block_shape,f'Area: {area} pix2',(text_align,50),FONT,2,COLORS_TEXTS[color_block],2)
 	image_distance = cv2.putText(image_area,f'dist: {aprox_distance} cm',(text_align,100),FONT,2,COLORS_TEXTS[color_block],2)
@@ -266,19 +264,20 @@ def obtain_distance(color, aspect_ratio, area):
         raise Exception (f"Color '{color}' not found in distance ranges.")
     if area <= 0:
         return 'Away'
-    if aspect_ratio < 0.6:
+    if aspect_ratio < 0.55:
         return 'Away'
-    if 0.6<= aspect_ratio <= 0.7:
+    if 0.55<= aspect_ratio <= 0.7:
         # Binary search or linear interpolation over 'low_ar'
         area_dist_list = channel['low_ar']
         if area <= area_dist_list[0][0]:
             return 'Away'
         if area >= area_dist_list[-1][0]:
             return 'Close'
+        
         for idx in range(len(area_dist_list) - 1):
             a1, d1 = area_dist_list[idx]
             a2, d2 = area_dist_list[idx + 1]
-            if a1 <= area <= a2 or a2 <= area <= a1:
+            if a1 <= area <= a2:
                 dist_aprox = (d1 + d2) // 2
                 break
         if area_dist_list[0][1]<= dist_aprox <=area_dist_list[11][1]:
@@ -329,10 +328,14 @@ def check_block_gripper(image, color):
 	if closest_block:
 		_, aspect, center = area_aspect_ratio_center(closest_block)
 		#check if the block is in the gripper
-		if 1.6 < aspect < 2.8 and (CENTER_X_IMAGE -200 < center[0] < CENTER_X_IMAGE +200) and(560 < center[1] < CAMERA_MAIN_RESOLUTION[1]):
+		if 1 < aspect < 4 and (CENTER_X_IMAGE -200 < center[0] < CENTER_X_IMAGE +200) and(560 < center[1] < CAMERA_MAIN_RESOLUTION[1]):
+			print('I obtained the block')
 			return True
 		return False
 	return False
 
 #TODO: Play with homography to generate a bird view of the robot
 
+def top_view_plane(image):
+# Apply perspective transformation
+	return cv2.warpPerspective(image, HOMOGRAPHY_MATRIX,HOMOGRAPHY_SIZE)

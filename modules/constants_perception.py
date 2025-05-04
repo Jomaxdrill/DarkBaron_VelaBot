@@ -5,8 +5,8 @@ from utilities_camera import CAMERA_MAIN_RESOLUTION
 
 #TODO: UNDERSTAND HOW ILLUMINATION CAN AFFECT THE MEASUREMENTS
 ###*COLOR RANGES
-#*GREEN
-LOWER_GREEN = np.array([35, 80, 100])#145 #155
+#*GREEN+
+LOWER_GREEN = np.array([35, 80, 125])#145 #155
 UPPER_GREEN = np.array([85, 255, 255])
 #lower_green = np.array([35, 50, 50])
 #upper_green = np.array([85, 255, 255])
@@ -70,7 +70,7 @@ COLORS_TEXTS = {
 ####*FILTERS
 GAUSS_KERNEL =  (5,5)
 MEDIAN_BLUR_KERNEL = 7
-KERNEL_MORPH = np.ones((3, 3), np.uint8)
+KERNEL_MORPH = np.ones((5, 5), np.uint8)
 
 ###*TEXT
 FONT = cv2.FONT_HERSHEY_PLAIN
@@ -152,3 +152,10 @@ DISTANCE_RANGES = {
     }
 }
 
+#HOMOGRAPHY
+
+HOMOGRAPHY_MATRIX = np.array([[-4.33170353e-01, -1.04710287e+00,  6.11339458e+02],
+ [ 1.40739281e-01, -4.89338360e+00,  2.21741027e+03],
+ [ 1.02717601e-04, -2.76356794e-03,  1.00000000e+00]])
+
+HOMOGRAPHY_SIZE = (720,1600)

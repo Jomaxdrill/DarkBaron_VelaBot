@@ -13,11 +13,11 @@ MIN_RESOLUTION_ROT = 4.5 #degrees aprox watch means rotate 1 step of encoder
 
 K_linear = 1.25
 K_ROT_IMU = 1.2
-K_D_ROT_IMU = 1.145#1.175
+K_D_ROT_IMU = 1.15#1.175
 ERROR_STEPS = 1
 
 
-PWM_LINEAR = 30 #75 turnning #30 advance
+PWM_LINEAR = 40 #75 turnning #30 advance
 PWM_ROT = 75
 
 UNITARY_VECTOR_X = [1,0] #the angle is always respect to the x axis
@@ -170,7 +170,7 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 	pwm_left_2.start(0)
 	pwm_right_1.start(0)
 	pwm_right_2.start(0)
-	while abs(error_reference) >= 0.65:
+	while abs(error_reference) >= 0.5:
 		yaw = read_imu_yaw_angle(sensor_imu)
 		if yaw is None:
 			continue
@@ -192,7 +192,7 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 		duty_cycle = abs(error_reference)*K_ROT_IMU + derivative*K_D_ROT_IMU
 		#print(f'control signal: {duty_cycle}')
 		#Apply saturation as duty cycle can't be negative or lower certain threshold to work
-		duty_cycle = max(min(duty_cycle, 100),70)#35
+		duty_cycle = max(min(duty_cycle, 100),60)#70
 		if reference > 0:
 			#turn to left direction
 			if error_reference > 0:
