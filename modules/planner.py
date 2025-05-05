@@ -16,7 +16,7 @@ OFFEST_SONAR_IMU = 8.5 #cm
 has_block = False
 #TODO: Maybe give mean of sonar distance of 10 measurements
 #SEARCH_SEQUENCE = [0,20,45,90,120,0,-20,-45,-90,-120,0]
-# TOTAL_MAP = (365.76,365.76) #edge of total square map
+# TOTAL_MAP = (304.8,304.8) #edge of total square map
 # OFFSET_LOCATE = 2 #cm
 # CORNER_GOAL = (30.48, 335.28) #cm
 # block_sequence = ['red','blue','green']
@@ -35,11 +35,11 @@ def first_planner(block_sequence, goal_coordinates):
 	while len(block_sequence) > 0:
 		#TODO: for now check how it behaves the avoiding with sonar
 		avoid_hitting_wall(record_pos)
-		info_block = mode_search(record_pos, camera, block_sequence[-1], imu_sensor, block_sequence)
-		#check if there are any blocks detected
-		if not info_block:
+		found_block = mode_search(record_pos, camera, block_sequence[-1], imu_sensor, block_sequence)
+		if not found_block:
 			continue
-		aligned = align_with_block(info_block, imu_sensor,record_pos)
+		#check if there are any blocks detected
+		aligned = align_with_block(camera,imu_sensor,record_pos)
 		if not aligned:
 			continue
 		reached_block = move_to_block(camera, servo, imu_sensor, block_sequence[-1], record_pos)
@@ -87,8 +87,13 @@ def localize(imu_sensor, record_pos):
 	record_pos.append((pos_x, pos_y, LOCALIZE_SEQUENCE[-1][2]))
 	return 'Done'
 
-def align_with_block(info_block, imu_sensor, record_pos):
-	_, _,center = area_aspect_ratio_center(info_block)
+def align_with_block(camera_pi, imu_sensor, record_pos):
+	image = take_image(camera_pi)
+	info_contours = inform_block(image, color_block)
+	if not info_contours:
+		print('while reaching the block we lost track of it')
+		return False
+	_, _,center = area_aspect_ratio_center(info_contours)
 	#calculate the angle of the block with respect to the center of the image
 	angle_block = angle_block_gripper_by(center)
 	angle_block = angle_block - OFFSET_ANGLE_image if angle_block <= 0 else angle_block + OFFSET_ANGLE_image
@@ -104,86 +109,55 @@ def align_with_block(info_block, imu_sensor, record_pos):
 	control_rotation_imu(motor_pwm_setup, reference_angle, imu_sensor, record_pos)
 	return True
 
-
-def move_to_block_new():
-    pass
-
-def get_info_camera(camera_pi, color_block):
+def get_distance_from_camera(camera_pi, color_block):
 	image = take_image(camera_pi)
 	info_block = inform_block(image, color_block)
 	#check if there are any blocks detected
 	if info_block:
-		area, aspect_ratio, _ = area_aspect_ratio_center(info_block)
-		
-  
-def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos):
-	image = take_image(camera_pi)
-	info_block = inform_block(image, color_block)
-	#check if there are any blocks detected
-	if info_block:
-		area, aspect_ratio, _ = area_aspect_ratio_center(info_block)
+		area, aspect_ratio, _= area_aspect_ratio_center(info_block)
 		dist_block = distance_to_block_by(area, aspect_ratio)
-		#depending the distance to the block decide how to tackle
-		if not dist_block:
-			return False
-		#open gripper
-		action_gripper(servo,'OPEN')
-		#advance one revolution, align with the block and advance again until the block is in reach
-		steps_to_advance = 0
-		while dist_block != 'In range to catch':
-			action = forward
-			if dist_block == 'Far Object':
-				steps_to_advance = DEFAULT_ADVANCE_DISTANCE*1.5
-			elif dist_block == 'Close Object':
-				steps_to_advance = DEFAULT_ADVANCE_DISTANCE*0.25
-			elif dist_block == 'Too Close':
-				action = reverse
-				steps_to_advance = 1
-				control_translation(action, steps_to_advance, record_pos)
-				action_gripper(servo,'CLOSE')
-				return True
+		return dist_block
+	return False
 
+def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos):
+	dist_block = get_distance_from_camera(camera_pi, color_block)
+	if not dist_block:
+		return False
+		#open gripper
+	#advance one revolution, align with the block and advance again until the block is in reach
+	action_gripper(servo,'OPEN')
+	steps_to_advance = 0
+	while dist_block != 'Catch':
+		action = forward
+		steps_to_advance = dist_block
+		if dist_block in ['Away','Remote']:
+			steps_to_advance = DEFAULT_ADVANCE_DISTANCE*3
+		elif dist_block == 'Far':
+			steps_to_advance = DEFAULT_ADVANCE_DISTANCE*2
+		elif dist_block == 'Near':
+			steps_to_advance = DEFAULT_ADVANCE_DISTANCE
+		elif dist_block == 'Close':
+			steps_to_advance = DEFAULT_ADVANCE_DISTANCE/2
+		elif dist_block == 'Stop':
+			action = reverse
+			steps_to_advance = 1
 			control_translation(action, steps_to_advance, record_pos)
-			#for every advancement align with the block as much as possible
-			#take an image
-			image = take_image(camera_pi)
-			info_contours = inform_block(image, color_block)
-			if not info_contours:
-				print('while reaching the block we lost track of it')
-				return False
-			aligned = align_with_block(info_contours,imu_sensor,record_pos)
-			if aligned:
-				#TODO: Modify here to be able to implement path planning logic
-				#take again after aligned to check for distance aligned
-				image = take_image(camera_pi)
-				info_contours = inform_block(image, color_block)
-				if not info_contours:
-					print('while reaching the block we lost track of it')
-					return False
-				print(f'moving to block detecting {info_contours}')
-				area, aspect_ratio, _ = area_aspect_ratio_center(info_contours)
-				dist_block = distance_to_block_by(area, aspect_ratio)
-		#catch the block but confirm the block is in the gripper after and is in the ideal range
-		image = take_image(camera_pi)
-		info_contours = inform_block(image, color_block)
-		if not info_contours:
-			print('Ohh no probably we made the block fall it was so close T-T')
-			return False
-		# area, aspect_ratio, _ = area_aspect_ratio_center(info_contours)
-		# dist_block = distance_to_block_by(area, aspect_ratio)
-		# if dist_block == 'Too Close':
-		# 	#move back to the ideal range
-		# 	steps_to_advance = 1
-		# 	control_translation(reverse, steps_to_advance, record_pos)
-		action_gripper(servo,'CLOSE')
-	
+			action_gripper(servo,'CLOSE')
+			return True
+		control_translation(action, steps_to_advance, record_pos)
+		#for every advancement align with the block as much as possible
+		aligned = align_with_block(camera_pi,imu_sensor,record_pos)
+		if aligned:
+			dist_block = get_distance_from_camera(camera_pi, color_block)
+		avoid_hitting_wall(record_pos)
+	action_gripper(servo,'CLOSE')
 	return True
 
 def take_secure_block(camera_pi, color_block, record_pos):
 	#take an image
 	image = take_image(camera_pi)
 	#verify the block is in the gripper
-	block_caught = True#check_block_gripper(image, color_block)
+	block_caught = check_block_gripper(image, color_block)
 	#move in reverse if block was caught
 	if block_caught:
 		has_block = True
@@ -230,7 +204,6 @@ def avoid_hitting_wall(record_pos):
 		control_translation(reverse, 30, record_pos)
 
 def mode_search(record_pos, camera_pi,color_block, imu_sensor):
-
 	for value in SEARCH_SEQUENCE:
 		#control the rotation of the robot to search for block
 		control_rotation_imu(motor_pwm_setup, value, imu_sensor, record_pos)
@@ -242,7 +215,7 @@ def mode_search(record_pos, camera_pi,color_block, imu_sensor):
 	return False
 
 def back_to_map(record_pos, servo,color_block, imu_sensor):
-    #when the robot at least has delivered one block going back to map
+	#when the robot at least has delivered one block going back to map
 	steps_to_advance = DEFAULT_ADVANCE_DISTANCE
 	control_translation(reverse, steps_to_advance , record_pos)
 	#close gripper
@@ -278,7 +251,7 @@ try:
 			continue
 		print(f"Found {color_block} block")
 		print(info_block)
-		aligned = align_with_block(info_block, imu_sensor,record_pos)
+		aligned = align_with_block(camera,imu_sensor,record_pos)
 		if not aligned:
 			raise ValueError(f"Failed to align with {color_block} block")
 		print(f"Aligned with {color_block} block")

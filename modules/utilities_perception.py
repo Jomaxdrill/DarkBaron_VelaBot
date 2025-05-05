@@ -263,7 +263,7 @@ def obtain_distance(color, aspect_ratio, area):
     if not channel:
         raise Exception (f"Color '{color}' not found in distance ranges.")
     if area <= 0:
-        return 'Away'
+        return 'Stop'
     if aspect_ratio < 0.55:
         return 'Away'
     if 0.55<= aspect_ratio <= 0.7:
@@ -273,24 +273,25 @@ def obtain_distance(color, aspect_ratio, area):
             return 'Away'
         if area >= area_dist_list[-1][0]:
             return 'Close'
-        
         for idx in range(len(area_dist_list) - 1):
             a1, d1 = area_dist_list[idx]
             a2, d2 = area_dist_list[idx + 1]
             if a1 <= area <= a2:
-                dist_aprox = (d1 + d2) // 2
+                dist_aprox = (d1 + d2) / 2
                 break
-        if area_dist_list[0][1]<= dist_aprox <=area_dist_list[11][1]:
+        print(f'dist aprox is {dist_aprox} cm')
+        if area_dist_list[0][1]>= dist_aprox >=area_dist_list[11][1]:
             return 'Remote'
-        elif area_dist_list[12][1]<= dist_aprox <=area_dist_list[22][1]:
+        elif area_dist_list[12][1]>= dist_aprox >=area_dist_list[22][1]:
             return 'Far'
-        #Near
-        elif area_dist_list[12][1]<= dist_aprox <=area_dist_list[22][1]:
+        elif area_dist_list[23][1]>= dist_aprox >=area_dist_list[44][1]:
+            return 'Near'
+        else:
             return dist_aprox
 
     if aspect_ratio > 0.7:
         if aspect_ratio >=6:
-            return 'Collide'
+            return 'Stop'
         if 3 <= aspect_ratio <= 4:
             return 'Catch'
         # Binary search or linear interpolation over 'low_ar'
@@ -298,15 +299,19 @@ def obtain_distance(color, aspect_ratio, area):
         if aspect_ratio <= ap_dist_list[0][0]:
             return 'Near'
         if aspect_ratio >= ap_dist_list[-1][0]:
-            return 'Collide'
+            return 'Stop'
         for idx in range(len(ap_dist_list) - 1):
             a1, d1 = ap_dist_list[idx]
             a2, d2 = ap_dist_list[idx + 1]
-            if a1 <= aspect_ratio <= a2 or a2 <= aspect_ratio <= a1:
-                dist_aprox = (d1 + d2) // 2
+            if a1 <= aspect_ratio <= a2:
+                dist_aprox = (d1 + d2) / 2
                 break
-        if ap_dist_list[0][1]<= dist_aprox <=ap_dist_list[11][1]:
+        print(f'dist aprox is {dist_aprox} cm')
+        if ap_dist_list[0][1]>= dist_aprox >=ap_dist_list[11][1]:
+            return 'Close'
+        else:
             return dist_aprox
+
 
 
 #TODO: Check if gripper is open or close by an image
