@@ -44,7 +44,7 @@ def get_contours(image):
 	#print(f'contours found: {len(contours)}')
 	return contours
 
-def draw_contours(image, contours):
+def draw_contours(image, contours,color):
 	return cv2.drawContours(image, contours, -1, GENERAL,GENERAL_BORDER)
 
 def get_contour_circle(contours):
@@ -139,12 +139,13 @@ def get_orientation(tip,contours):
 	# print(f'vector direction is {vector_direction}')
 	return np.arctan2(vector_direction[1], vector_direction[0])
 
-def process_image_contours(image,color):
-	#blurry_median = median_blurry_filter(mask_hsv)
+def process_image_contours(image, color, crop=True):
 	#remove initial noise
-	blurry_mask = blurry_image(image)
+	cropped_image = crop_half_image(image) if crop else image
+	blurry_mask = blurry_image(cropped_image)
 	hsv_image = convert_bgr_to_hsv(blurry_mask)
 	mask_hsv = create_hsv_mask(hsv_image,color)
+	#blurry_median = median_blurry_filter(mask_hsv)
 	#removing noise
 	morph_1 = erosion_to_dilation(mask_hsv)
 	#closing small holes inside the foreground objects, or small black points on the object. 
@@ -152,9 +153,9 @@ def process_image_contours(image,color):
 	contours = get_contours(final_mask)
 	return contours
 #TODO: Check how to filter noisy contours, areaa too small or big
-def find_block(image, color, draw=False):
-	contours = process_image_contours(image,color)
-	print(f'contours found: {len(contours)}')
+def find_block(image, color, draw=False, crop=True):
+	contours = process_image_contours(image, color, crop)
+	print(f'contours found of {color}: {len(contours)}')
 	info_contours = [ get_contour_box(cnt) for cnt in contours ]
 	image_to_draw = image.copy()
 	#determine what to do
@@ -188,7 +189,7 @@ def get_nearest_block(info_contours, pending = False):
 
 def inform_block(image, color_block):
 	#process the image to find potential blocks
-	_, info_contours = find_block(image, color_block)
+	_, info_contours = find_block(image, color_block,draw=False,crop=True)
 	#check if there are any blocks detected
 	if len(info_contours):
 		#find the block with the greatest area that is also the closest one to the robot
@@ -196,8 +197,19 @@ def inform_block(image, color_block):
 		return target_block
 	return False
 
+def add_white_area(image):
+    # Create a blank white image
+    blank_img = np.ones((CAMERA_MAIN_RESOLUTION[1]//2, CAMERA_MAIN_RESOLUTION[0], 3), dtype=np.uint8) * 255
+    
+    # Stack images vertically
+    result_img = np.vstack((blank_img, image))
+    return result_img
+
+def convert_white_area(image):
+    image[0:CAMERA_MAIN_RESOLUTION[1]//2, :] = 255
+    return image
 def show_area(image, color_block, text_align = 10):
-	block_shape, info_contours = find_block(image, color_block, True)
+	block_shape, info_contours = find_block(image, color_block, True, False)
 	# print(f'image shape: {image.shape}')
 	# # plt.imshow(block_shape)
 	# # plt.show()
@@ -228,7 +240,8 @@ def draw_center_image(image, center = CAMERA_MAIN_RESOLUTION):
 	cv2.line(image, (int(center[0]), int(center[1])-CROSS_LENGTH), (int(center[0]), int(center[1] +CROSS_LENGTH)), CROSS_COLOR, CROSS_BORDER)
 	return image
 def crop_half_image(image, center = CAMERA_MAIN_RESOLUTION):
-	image[:center[1], :] = 255
+	cropped_image = image[center[1]//2:, 0:]
+	#print(f'cropped size is :{np.shape(cropped_image)}')
 	return image
 
 def distance_to_block_by(area, aspect_ratio):
@@ -329,15 +342,38 @@ def check_gripper_state(image):
 #check if block is in the gripper
 def check_block_gripper(image, color):
 	closest_block = inform_block(image, color)
-	print(f'closest block: {closest_block}')
+	print(f'block {color} considered to caught found')
 	if closest_block:
-		_, aspect, center = area_aspect_ratio_center(closest_block)
-		#check if the block is in the gripper
-		if 1 < aspect < 4 and (CENTER_X_IMAGE -200 < center[0] < CENTER_X_IMAGE +200) and(560 < center[1] < CAMERA_MAIN_RESOLUTION[1]):
-			print('I obtained the block')
-			return True
-		return False
+		area, aspect, center = area_aspect_ratio_center(closest_block)
+		angle  = angle_block_gripper_by(center)
+		#*check angle is between (-1,1)
+		if np.abs(angle) > 1:
+			print('Not in proper angle to be considered caught')
+			return False
+		#*on average aspect ratio is between 1.5-3
+		if not (1.5 <= aspect <= 3):
+			print('Not in proper aspect ratio to be considered caught')
+			return False
+		if not (50000 <= area <= 60000):
+			print('Not in proper area to be considered caught')
+			return False
+		#*check if the block is in the horizontal zone
+		if not (CENTER_X_IMAGE -200 < center[0] < CENTER_X_IMAGE +200):
+			print('Not vert aligned to consider gripped')
+			return False
+		if (CAMERA_MAIN_RESOLUTION[1]-220 < center[1] < CAMERA_MAIN_RESOLUTION[1]):
+			print('Not hor aligned to consider gripped')
+			return False
+		print(f'Block {color} was caught yeaaah')
+		return True
+	print(f'Block {color} Not found to confirm it was caught')
 	return False
+
+
+def hide_caught_block(image,contour):
+    #fill with white or black the contour where the block it's supossed to be
+    #
+	pass
 
 #TODO: Play with homography to generate a bird view of the robot
 

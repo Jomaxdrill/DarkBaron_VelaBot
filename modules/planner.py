@@ -158,13 +158,30 @@ def take_secure_block(camera_pi, color_block, record_pos):
 	image = take_image(camera_pi)
 	#verify the block is in the gripper
 	block_caught = check_block_gripper(image, color_block)
+	#if i can confirm at first try it was caught open gripper and close again 3 times at least
+	attempts = 0
+	while not block_caught and attempts < 3:
+		action_gripper(servo,'OPEN')
+		action_gripper(servo,'CLOSE')
+		block_caught = check_block_gripper(image, color_block)
+	if attempts >=3 and not block_caught:
+		return False
+	has_block = True
 	#move in reverse if block was caught
-	if block_caught:
-		has_block = True
-		Steps_to_advance = DEFAULT_ADVANCE_DISTANCE*2
-		control_translation(reverse, Steps_to_advance , record_pos)
-		return True
-	return False
+	Steps_to_advance = DEFAULT_ADVANCE_DISTANCE*2
+	control_translation(reverse, Steps_to_advance , record_pos)
+	return True
+
+def avoid_other_blocks():
+    #hide the zone of the caught block always 
+    #look for blocks of different colors - obstacles
+    #check their angles
+    #if they are less than 15 degrees with respect to robot angle turn 20 degrees and a margin distance to settle(Near)
+    
+    #if there are no more block with angle less than 20 degrees calculate angle to goal again and move two revolutions
+    #do this until goal is reached
+    pass
+    
 
 def move_to_goal(servo,camera_pi, imu_sensor, goal_coordinate, record_pos, block_sequence):
 	#turn to next goal location
@@ -201,7 +218,7 @@ def move_to_goal(servo,camera_pi, imu_sensor, goal_coordinate, record_pos, block
 def avoid_hitting_wall(record_pos):
 	if distance_sonar() < EDGE_ZONE_BLOCK:
 		# Move back a bit
-		control_translation(reverse, 30, record_pos)
+		control_translation(reverse, EDGE_ZONE_BLOCK, record_pos)
 
 def mode_search(record_pos, camera_pi,color_block, imu_sensor):
 	for value in SEARCH_SEQUENCE:
@@ -244,7 +261,6 @@ try:
 	record_pos = []
 	record_pos.append((30.48,30.48,0))
 	for color_block in block_sequence[::-1]:
-		avoid_hitting_wall(record_pos)
 		info_block = mode_search(record_pos, camera,color_block, imu_sensor)
 		#check if there are any blocks detected
 		if not info_block:
