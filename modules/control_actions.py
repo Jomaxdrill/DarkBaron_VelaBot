@@ -174,9 +174,9 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 		yaw = read_imu_yaw_angle(sensor_imu)
 		if yaw is None:
 			continue
-		#print('yaw sensor:', yaw)
+		print('yaw sensor:', yaw)
 		error_reference = reference - yaw if reference > 0 else yaw- reference
-		#print('rot_error:', error_reference)
+		print('rot_error:', error_reference)
 		if current_time is None:
 			current_time = time.time()
 		# Calculate derivative
@@ -192,7 +192,7 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 		duty_cycle = abs(error_reference)*K_ROT_IMU + derivative*K_D_ROT_IMU
 		#print(f'control signal: {duty_cycle}')
 		#Apply saturation as duty cycle can't be negative or lower certain threshold to work
-		duty_cycle = max(min(duty_cycle, 100),60)#70
+		duty_cycle = max(min(duty_cycle, 100),50)#70
 		if reference > 0:
 			#turn to left direction
 			if error_reference > 0:

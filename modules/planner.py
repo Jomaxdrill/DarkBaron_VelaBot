@@ -3,13 +3,14 @@ from utilities_motors import *
 from utilities_camera import *
 from utilities_record import *
 from utilities_perception import *
+from utilities_sensors import *
 from basic_init import *
 import copy
 TOTAL_BLOCKS = 3
 LOCALIZE_SEQUENCE = [0,90,180,-90,0]
 SEARCH_SEQUENCE = [0,20,-20,45,-45,0]
 EDGE_ZONE_BLOCK = 30.48 #cm
-TOTAL_MAP = (365.76,365.76)#(115, 98)
+TOTAL_MAP = (79.5,79.5)#(365.76,365.76)#(115, 98)
 OFFSET_ANGLE_image = 0.1#0.25 #1.5 #when  angle image is negative add the value, positive subtract
 OFFSET_TO_GRIPPER = 23 #distance from imu to gripper center of grasping
 OFFEST_SONAR_IMU = 8.5 #cm
@@ -39,7 +40,7 @@ def first_planner(block_sequence, goal_coordinates):
 		if not found_block:
 			continue
 		#check if there are any blocks detected
-		aligned = align_with_block(camera,imu_sensor,record_pos)
+		aligned = align_with_block(camera,imu_sensor,record_pos,block_sequence[-1])
 		if not aligned:
 			continue
 		reached_block = move_to_block(camera, servo, imu_sensor, block_sequence[-1], record_pos)
@@ -51,7 +52,7 @@ def first_planner(block_sequence, goal_coordinates):
 		block_placed = move_to_goal(servo, imu_sensor, goal_coordinates[-1], record_pos, block_sequence)
 		if not block_placed:
 			continue
-		back_to_map(record_pos, servo, color_block, imu_sensor)
+		back_to_map(record_pos, servo, block_sequence[-1], imu_sensor)
 	gameover()
 	return 'Done all blocks wiiiiiii'
 
@@ -71,9 +72,9 @@ def create_goal_coordinate(X_o, Y_o):
 	return goals_blocks[::-1] #return inverted
 def localize(imu_sensor, record_pos):
 	distances_calibration = []
-	for value in LOCALIZE_SEQUENCE:
+	for idx, value in enumerate(LOCALIZE_SEQUENCE):
 		control_rotation_imu(motor_pwm_setup, value, imu_sensor,record_pos)
-		distance_saved = distance_sonar() + OFFEST_SONAR_IMU
+		distance_saved = distance_sonar_average() + OFFEST_SONAR_IMU
 		distances_calibration.append(distance_saved) #10 cm offset in x direction to imu
 		print(f'localize for {value} is {distance_saved}cm')
 	hor_distance = distances_calibration[0] + distances_calibration[2]
@@ -82,8 +83,8 @@ def localize(imu_sensor, record_pos):
 	print(f'ver distance is {ver_distance}')
 	diff_hor = hor_distance - TOTAL_MAP[0]
 	diff_ver = ver_distance - TOTAL_MAP[1]
-	print(f'err hor distance is {hor_distance}')
-	print(f'err ver distance is {ver_distance}')
+	print(f'err hor distance is {diff_hor}')
+	print(f'err ver distance is {diff_ver}')
 	pos_x = record_pos[-1][0]
 	pos_y = record_pos[-1][1]
 	#an attempt to correct the position
@@ -91,10 +92,10 @@ def localize(imu_sensor, record_pos):
 	pos_y = pos_y - diff_ver if diff_ver > 0 else pos_y + diff_ver
 	print(f'final x distance is {pos_x}')
 	print(f'final y  distance is {pos_y}')
-	record_pos.append((pos_x, pos_y, LOCALIZE_SEQUENCE[-1][2]))
+	record_pos.append((pos_x, pos_y, LOCALIZE_SEQUENCE[-1]))
 	return 'Done'
 
-def align_with_block(camera_pi, imu_sensor, record_pos):
+def align_with_block(camera_pi, imu_sensor, record_pos, color_block):
 	image = take_image(camera_pi)
 	info_contours = inform_block(image, color_block)
 	if not info_contours:
@@ -153,7 +154,7 @@ def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos):
 			return True
 		control_translation(action, steps_to_advance, record_pos)
 		#for every advancement align with the block as much as possible
-		aligned = align_with_block(camera_pi,imu_sensor,record_pos)
+		aligned = align_with_block(camera_pi,imu_sensor,record_pos,color_block)
 		if aligned:
 			dist_block = get_distance_from_camera(camera_pi, color_block)
 		avoid_hitting_wall(record_pos)
@@ -322,33 +323,34 @@ try:
 	servo = init_servo()
 	# # Record positions
 	record_pos = []
-	record_pos.append((0,0,0))
+	record_pos.append((39.45,39.45,0))
+	localize(imu_sensor, record_pos)
 	#record_pos.append((30.48,30.48,0))
-	for color_block in block_sequence[::-1]:
-		info_block = mode_search(record_pos, camera,color_block, imu_sensor)
-		#check if there are any blocks detected
-		if not info_block:
-			continue
-		print(f"Found {color_block} block")
-		print(info_block)
-		aligned = align_with_block(camera,imu_sensor,record_pos)
-		if not aligned:
-			raise ValueError(f"Failed to align with {color_block} block")
-		print(f"Aligned with {color_block} block")
-		reached_block = move_to_block(camera, servo, imu_sensor, color_block, record_pos)
-		if not reached_block:
-			continue
-			#raise ValueError(f"Failed to reach {color_block} block")
-		print(f"Reached {color_block} block")
-		getting_block = take_secure_block(camera, block_sequence[-1], record_pos)
-		if not getting_block:
-			continue
-			#raise ValueError(f"Failed to grab {color_block} block")
-		placed_block = move_to_goal(servo, camera, imu_sensor, goal_coordinate , record_pos, bl_seq_copy)
-		if not placed_block:
-			raise ValueError(f"Failed to place {color_block} block")
-		back_to_map(record_pos, servo,color_block, imu_sensor)
-	save_file_info(record_pos)
+	# for color_block in block_sequence[::-1]:
+	# 	info_block = mode_search(record_pos, camera,color_block, imu_sensor)
+	# 	#check if there are any blocks detected
+	# 	if not info_block:
+	# 		continue
+	# 	print(f"Found {color_block} block")
+	# 	print(info_block)
+	# 	aligned = align_with_block(camera,imu_sensor,record_pos,color_block)
+	# 	if not aligned:
+	# 		raise ValueError(f"Failed to align with {color_block} block")
+	# 	print(f"Aligned with {color_block} block")
+	# 	reached_block = move_to_block(camera, servo, imu_sensor, color_block, record_pos)
+	# 	if not reached_block:
+	# 		continue
+	# 		#raise ValueError(f"Failed to reach {color_block} block")
+	# 	print(f"Reached {color_block} block")
+	# 	getting_block = take_secure_block(camera, block_sequence[-1], record_pos)
+	# 	if not getting_block:
+	# 		continue
+	# 		#raise ValueError(f"Failed to grab {color_block} block")
+	# 	placed_block = move_to_goal(servo, camera, imu_sensor, goal_coordinate , record_pos, bl_seq_copy)
+	# 	if not placed_block:
+	# 		raise ValueError(f"Failed to place {color_block} block")
+	# 	back_to_map(record_pos, servo,color_block, imu_sensor)
+	# save_file_info(record_pos)
 except KeyboardInterrupt:
 	print("Stopping motors")
 	#
