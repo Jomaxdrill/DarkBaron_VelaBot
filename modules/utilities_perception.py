@@ -148,7 +148,7 @@ def process_image_contours(image, color, crop=True):
 	#blurry_median = median_blurry_filter(mask_hsv)
 	#removing noise
 	morph_1 = erosion_to_dilation(mask_hsv)
-	#closing small holes inside the foreground objects, or small black points on the object. 
+	#closing small holes inside the foreground objects, or small black points on the object.
 	final_mask = dilation_to_erosion(morph_1)
 	contours = get_contours(final_mask)
 	return contours
@@ -171,10 +171,10 @@ def area_aspect_ratio_center(info_contour):
 	area = width * height
 	aspect_ratio = float(width/height)
 	#* get center of the rectangle
-	center_x = int(width//2)+ left_pos_x
+	center_x = int(width//2) + left_pos_x
 	center_y = int(height//2) + left_pos_y
 	center = (center_x,center_y)
-	return area, aspect_ratio,center
+	return area, aspect_ratio, center
 
 def get_nearest_block(info_contours, pending = False):
 	areas_all = [width*height for _,_,width,height in info_contours]
@@ -200,7 +200,6 @@ def inform_block(image, color_block):
 def add_white_area(image):
     # Create a blank white image
     blank_img = np.ones((CAMERA_MAIN_RESOLUTION[1]//2, CAMERA_MAIN_RESOLUTION[0], 3), dtype=np.uint8) * 255
-    
     # Stack images vertically
     result_img = np.vstack((blank_img, image))
     return result_img
@@ -370,7 +369,7 @@ def check_block_gripper(image, color):
 	return False
 
 
-def hide_caught_block(image,contour):
+def hide_caught_block(image, contour):
     #fill with white or black the contour where the block it's supossed to be
     #
 	pass
