@@ -2,8 +2,8 @@ import RPi.GPIO as gpio
 import numpy as np
 import time
 from constants_pi import ENCODER_LEFT,ENCODER_RIGHT
-from utilities_sensors import OFFSET_YAW, read_imu_yaw_angle,distance_sonar
-from utilities_motors import turn_off_motors
+from utilities_sensors import OFFSET_YAW, read_imu_yaw_angle,normalize_angle,distance_sonar
+from utilities_motors import turn_off_motors, motor_pwm_setup
 
 DEFAULT_ADVANCE_DISTANCE = 20.42  # cm
 DEFAULT_CLOSE_DISTANCE = 6.0  # cm
@@ -33,23 +33,11 @@ def transformation_robot_to_world(angle, position):
 		[0, 0, 1]
 	])
 
-#Noralize angle between [0,180] and (0,-179.9999)
-def normalize_angle(angle):
-	if angle > OFFSET_YAW:
-		angle = angle % OFFSET_YAW
-	#NORMALIZED THE ANGLE
-	if angle > OFFSET_YAW//2 and angle < OFFSET_YAW:
-		angle = angle - OFFSET_YAW
-	return angle
+
 
 def get_angle(vector_a):
 	angle_dot_product = np.arccos(np.dot(vector_a, UNITARY_VECTOR_X)/(np.linalg.norm(vector_a)))
-	angle = np.degrees(angle_dot_product)
-	#NORMALIZED THE ANGLE
-	if angle > OFFSET_YAW:
-		angle = angle % OFFSET_YAW
-	if angle > OFFSET_YAW//2 and angle < OFFSET_YAW:
-		angle = angle - OFFSET_YAW
+	angle = normalize_angle(np.degrees(angle_dot_product))
 	return angle
 
 def get_vector(node_a, node_b):
@@ -119,43 +107,7 @@ def control_translation(action, reference, history, args = []):
 	time.sleep(1)
 	return history
 
-#TODO: test this function once but forv now not needed
-def keep_straight_pwm(action,reference):
-	pwm_left, pwm_right = action()
-	success = 0
-	error_reference = 0
-	current_time = None
-	prev_time = None
-	prev_error = 0
-	duty_cycle = 0
-	pwm_left.start(0)
-	pwm_right.start(0)
-	#achieve certain time maintaining straight
-	while success < 5:
-		yaw = read_imu_yaw_angle()
-		error_reference = reference-yaw
-		if abs(error_reference) <= 0.1:
-			success += 1
-			#print(f'error reference: {error_reference}')
-		else:
-			if current_time is None:
-				current_time = 0.001
-			else:
-				current_time = time.time()
-			delta_time = current_time - prev_time
-			delta_error = error_reference - prev_error
-			derivative = delta_error / delta_time
-			duty_cycle = PWM_LINEAR + K_ROT_IMU*error_reference + K_D_ROT_IMU * derivative
-			if error_reference > 0:
-				pwm_left.ChangeDutyCycle(duty_cycle)
-			if error_reference < 0:
-				pwm_right.ChangeDutyCycle(duty_cycle)
-			prev_time = current_time
-			prev_error = error_reference
-	turn_off_motors()
-	print(f'success performing {reference}°\n')
-
-def control_rotation_imu(action, reference,sensor_imu,history = []):
+def control_rotation_imu(reference,sensor_imu,history = []):
 	last_position = history[-1] if history else (0.0, 0.0, 0)
 	# _, _, angle = last_position
 	error_reference = np.inf
@@ -165,17 +117,17 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 	prev_time = None
 	prev_error = 0
 	duty_cycle = 0
-	pwm_left_1, pwm_left_2, pwm_right_1, pwm_right_2 = action()
+	pwm_left_1, pwm_left_2, pwm_right_1, pwm_right_2 = motor_pwm_setup()
 	pwm_left_1.start(0)
 	pwm_left_2.start(0)
 	pwm_right_1.start(0)
 	pwm_right_2.start(0)
-	while abs(error_reference) >= 0.5:
+	while abs(error_reference) >= 0.55:
 		yaw = read_imu_yaw_angle(sensor_imu)
 		if yaw is None:
 			continue
 		print('yaw sensor:', yaw)
-		error_reference = reference - yaw if reference > 0 else yaw- reference
+		error_reference = reference - yaw
 		print('rot_error:', error_reference)
 		if current_time is None:
 			current_time = time.time()
@@ -189,42 +141,28 @@ def control_rotation_imu(action, reference,sensor_imu,history = []):
 				derivative = (error_reference - prev_error) / diff_time
 			else:
 				derivative = 0
+		#normalize the error when it has to turn more than 180 degrees
+		if abs(error_reference) > OFFSET_YAW//2:
+			error_reference = error_reference + OFFSET_YAW if error_reference < 0 else error_reference - OFFSET_YAW
 		duty_cycle = abs(error_reference)*K_ROT_IMU + derivative*K_D_ROT_IMU
 		#print(f'control signal: {duty_cycle}')
 		#Apply saturation as duty cycle can't be negative or lower certain threshold to work
 		duty_cycle = max(min(duty_cycle, 100),50)#70
-		if reference > 0:
-			#turn to left direction
-			if error_reference > 0:
-					pwm_left_1.ChangeDutyCycle(0)
-					pwm_left_2.ChangeDutyCycle(duty_cycle)
-					pwm_right_1.ChangeDutyCycle(0)
-					pwm_right_2.ChangeDutyCycle(duty_cycle)
-			# turn to right direction
-			else:
-				pwm_left_1.ChangeDutyCycle(duty_cycle)
-				pwm_left_2.ChangeDutyCycle(0)
-				pwm_right_1.ChangeDutyCycle(duty_cycle)
-				pwm_right_2.ChangeDutyCycle(0)
-		else:
-			#turn to right direction
-			if error_reference > 0:
-				pwm_left_1.ChangeDutyCycle(duty_cycle)
-				pwm_left_2.ChangeDutyCycle(0)
-				pwm_right_1.ChangeDutyCycle(duty_cycle)
-				pwm_right_2.ChangeDutyCycle(0)
-			# turn to left direction
-			else:
+		#turn to left direction
+		if error_reference > 0:
 				pwm_left_1.ChangeDutyCycle(0)
 				pwm_left_2.ChangeDutyCycle(duty_cycle)
 				pwm_right_1.ChangeDutyCycle(0)
 				pwm_right_2.ChangeDutyCycle(duty_cycle)
-
+		# turn to right direction
+		else:
+			pwm_left_1.ChangeDutyCycle(duty_cycle)
+			pwm_left_2.ChangeDutyCycle(0)
+			pwm_right_1.ChangeDutyCycle(duty_cycle)
+			pwm_right_2.ChangeDutyCycle(0)
 		#print(f'control signal : {duty_cycle}')
 		prev_time = current_time
 		prev_error = error_reference
-		# pwm_left.ChangeDutyCycle(duty_cycle)
-		# pwm_right.ChangeDutyCycle(duty_cycle)
 	new_rotation = error_reference + reference
 	if new_rotation >= OFFSET_YAW:
 		new_rotation = new_rotation % OFFSET_YAW

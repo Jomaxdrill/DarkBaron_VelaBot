@@ -66,10 +66,14 @@ def read_imu_yaw_angle(imu_sensor):
 		yaw = float(yaw_raw.strip("'").strip("'b"))
 		if yaw == OFFSET_YAW or yaw == 0:
 			return 0
-		yaw_normalized = OFFSET_YAW - yaw
-		if yaw_normalized > OFFSET_YAW//2 and yaw_normalized < OFFSET_YAW:
-			yaw_normalized = yaw_normalized - OFFSET_YAW
-		return yaw_normalized
+		return yaw
+#Normalize angle between [0,360)
+def normalize_angle(angle):
+	if angle < 0:
+		angle = angle + OFFSET_YAW
+	if angle >= OFFSET_YAW:
+		angle = angle % OFFSET_YAW
+	return angle
 
 def moving_average_filter(data_info, window_size =4):
 	data_moving_average = np.zeros(len(data_info))

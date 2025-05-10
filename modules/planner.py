@@ -73,7 +73,7 @@ def create_goal_coordinate(X_o, Y_o):
 def localize(imu_sensor, record_pos):
 	distances_calibration = []
 	for idx, value in enumerate(LOCALIZE_SEQUENCE):
-		control_rotation_imu(motor_pwm_setup, value, imu_sensor,record_pos)
+		control_rotation_imu(value, imu_sensor,record_pos)
 		distance_saved = distance_sonar_average() + OFFEST_SONAR_IMU
 		distances_calibration.append(distance_saved) #10 cm offset in x direction to imu
 		print(f'localize for {value} is {distance_saved}cm')
@@ -114,7 +114,7 @@ def align_with_block(camera_pi, imu_sensor, record_pos, color_block):
 	reference_angle = normalize_angle(reference_angle)
 	print(f'reference_angle is {reference_angle}')
 	#control the rotation of the robot to align with the block
-	control_rotation_imu(motor_pwm_setup, reference_angle, imu_sensor, record_pos)
+	control_rotation_imu(reference_angle, imu_sensor, record_pos)
 	return True
 
 def get_distance_from_camera(camera_pi, color_block):
@@ -133,7 +133,6 @@ def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos):
 		return False
 		#open gripper
 	#advance one revolution, align with the block and advance again until the block is in reach
-	action_gripper(servo,'OPEN')
 	steps_to_advance = 0
 	while dist_block != 'Catch':
 		action = forward
@@ -143,6 +142,7 @@ def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos):
 		elif dist_block == 'Far':
 			steps_to_advance = DEFAULT_ADVANCE_DISTANCE*2
 		elif dist_block == 'Near':
+			action_gripper(servo,'OPEN')
 			steps_to_advance = DEFAULT_ADVANCE_DISTANCE
 		elif dist_block == 'Close':
 			steps_to_advance = DEFAULT_ADVANCE_DISTANCE/2
@@ -227,7 +227,7 @@ def avoid_other_blocks(record_pos,camera_pi):
 			direction = 'turn right'
 		angle_to_turn = angle_to_turn + record_pos[-1][2]
 		angle_to_turn = normalize_angle(angle_to_turn)
-		control_rotation_imu(motor_pwm_setup, angle_to_turn, imu_sensor,record_pos)
+		control_rotation_imu(angle_to_turn, imu_sensor,record_pos)
 		return direction
 #*IM USING A TRIGONOMETRY HERE OF RECTANGLE TRIANGLES TO DERIVE A PATH
 #***AFTER THIS IT-S EXPECTED TO RECALCULATE MY PATH TO GOAL OR MY DISTANCE TO BLOCK
@@ -237,7 +237,7 @@ def correct_to_target(record_pos,imu_sensor, direction):
 	control_translation(forward, steps_to_advance, record_pos)
 	angle_to_turn = last_angle - 90 if direction == 'turn left' < 0 else last_angle + 90
 	angle_to_turn = normalize_angle(angle_to_turn)
-	control_rotation_imu(motor_pwm_setup, angle_to_turn, imu_sensor,record_pos)
+	control_rotation_imu(angle_to_turn, imu_sensor,record_pos)
 
 
 def move_to_goal(servo,camera_pi, imu_sensor, goal_coordinate, record_pos, block_sequence):
@@ -250,7 +250,7 @@ def move_to_goal(servo,camera_pi, imu_sensor, goal_coordinate, record_pos, block
 	print(f'angle to goal is {angle_to_goal}')
 	print(f'vector to goal is {vector_to_goal}')
 	#turn to the goal location
-	control_rotation_imu(motor_pwm_setup, angle_to_goal, imu_sensor, record_pos)
+	control_rotation_imu(angle_to_goal, imu_sensor, record_pos)
 	#TODO: path planning to goal logic
 	steps_to_advance = np.linalg.norm(vector_to_goal)
 	print(f'steps to advance is {steps_to_advance}')
@@ -282,7 +282,7 @@ def avoid_hitting_wall(record_pos):
 def mode_search(record_pos, camera_pi,color_block, imu_sensor):
 	for value in SEARCH_SEQUENCE:
 		#control the rotation of the robot to search for block
-		control_rotation_imu(motor_pwm_setup, value, imu_sensor, record_pos)
+		control_rotation_imu(value, imu_sensor, record_pos)
 		#take an image
 		image = take_image(camera_pi)
 		info_contours = inform_block(image, color_block)
@@ -293,9 +293,9 @@ def mode_search(record_pos, camera_pi,color_block, imu_sensor):
 def turn_back_robot(record_pos,imu_sensor):
 	#rotate inverse
 	last_angle = record_pos[-1][2]
-	angle_inverse = last_angle - OFFSET_YAW//2 if 0 < last_angle <= OFFSET_YAW//2 else last_angle + OFFSET_YAW//2
+	angle_inverse = last_angle + OFFSET_YAW//2
 	angle_inverse = normalize_angle(angle_inverse)
-	control_rotation_imu(motor_pwm_setup, angle_inverse, imu_sensor, record_pos)
+	control_rotation_imu(angle_inverse, imu_sensor, record_pos)
 	return True
 
 def back_to_map(record_pos, servo,color_block, imu_sensor):
