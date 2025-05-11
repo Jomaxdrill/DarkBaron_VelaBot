@@ -64,8 +64,7 @@ def read_imu_yaw_angle(imu_sensor):
 		line = line.rstrip().lstrip()
 		yaw_raw = str(line)
 		yaw = float(yaw_raw.strip("'").strip("'b"))
-		if yaw == OFFSET_YAW or yaw == 0:
-			return 0
+		yaw = OFFSET_YAW - yaw
 		return yaw
 #Normalize angle between [0,360)
 def normalize_angle(angle):

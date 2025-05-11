@@ -77,7 +77,7 @@ FONT = cv2.FONT_HERSHEY_PLAIN
 
 ###*FOR DETECTION
 GRIPPER_COLOR = 'black'
-NOISY_CONTOUR_AREA = 100 #minimum area of the contour to be considered
+NOISY_CONTOUR_AREA = 120 #minimum area of the contour to be considered
 PIXEL_ANGLE = 0.062 #angle in degrees that represents a pixel movement #0.0605
 CENTER_X_IMAGE = int(CAMERA_MAIN_RESOLUTION[0]//2)
 #LOOK UP TABLE FOR DEPTH ESTIMATION

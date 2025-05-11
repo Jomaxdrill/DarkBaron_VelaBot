@@ -12,8 +12,8 @@ MIN_RESOLUTION_LIN = DEFAULT_ADVANCE_DISTANCE / STEPS #cm aprox watch means adva
 MIN_RESOLUTION_ROT = 4.5 #degrees aprox watch means rotate 1 step of encoder
 
 K_linear = 1.25
-K_ROT_IMU = 1.2
-K_D_ROT_IMU = 1.15#1.175
+K_ROT_IMU = 1.15
+K_D_ROT_IMU = 0.35#1.175
 ERROR_STEPS = 1
 
 
@@ -63,6 +63,7 @@ def control_translation(action, reference, history, args = []):
 	pwm_left, pwm_right, flag_type = action()
 	pwm_left.start(PWM_LINEAR) # USE % OF duty cycle
 	pwm_right.start(PWM_LINEAR) # USE % OF duty cycle
+	print(f'reference is {reference}')
 	steps_reference = round(reference/MIN_RESOLUTION_LIN)
 	print(f'steps reference: {steps_reference} ')
 	while ticks <= steps_reference:
@@ -104,7 +105,7 @@ def control_translation(action, reference, history, args = []):
 	pwm_right.stop()
 	print(f'success performing {reference} cm\n')
 	turn_off_motors()
-	time.sleep(1)
+	time.sleep(0.5)
 	return history
 
 def control_rotation_imu(reference,sensor_imu,history = []):
@@ -122,32 +123,36 @@ def control_rotation_imu(reference,sensor_imu,history = []):
 	pwm_left_2.start(0)
 	pwm_right_1.start(0)
 	pwm_right_2.start(0)
-	while abs(error_reference) >= 0.55:
+	while abs(error_reference) >= 0.75:
 		yaw = read_imu_yaw_angle(sensor_imu)
 		if yaw is None:
 			continue
-		print('yaw sensor:', yaw)
+		#print('yaw sensor:', yaw)
 		error_reference = reference - yaw
-		print('rot_error:', error_reference)
-		if current_time is None:
-			current_time = time.time()
+		#print('rot_error:', error_reference)
+		#normalize the error when it has to turn more than 180 degrees
+		if abs(error_reference) > OFFSET_YAW//2:
+			error_reference = error_reference + OFFSET_YAW if error_reference < 0 else error_reference - OFFSET_YAW
+			#print('error normalized is',error_reference)
+		current_time = time.time()
 		# Calculate derivative
 		if prev_time is None:  # First iteration
 			derivative = 0
 			diff_time = 0.001  # Default small time step
 		else:
 			diff_time = current_time - prev_time
+			#print('diff time', diff_time)
 			if diff_time > 0:
 				derivative = (error_reference - prev_error) / diff_time
 			else:
 				derivative = 0
-		#normalize the error when it has to turn more than 180 degrees
-		if abs(error_reference) > OFFSET_YAW//2:
-			error_reference = error_reference + OFFSET_YAW if error_reference < 0 else error_reference - OFFSET_YAW
-		duty_cycle = abs(error_reference)*K_ROT_IMU + derivative*K_D_ROT_IMU
+		#print('derivative is:', derivative)
+		duty_cycle = abs(error_reference)*K_ROT_IMU - derivative*K_D_ROT_IMU
+		#print('calculated duty cycle', duty_cycle)
 		#print(f'control signal: {duty_cycle}')
 		#Apply saturation as duty cycle can't be negative or lower certain threshold to work
-		duty_cycle = max(min(duty_cycle, 100),50)#70
+		duty_cycle = max(min(duty_cycle, 100),55)#70
+		#print('real duty cycle', duty_cycle)
 		#turn to left direction
 		if error_reference > 0:
 				pwm_left_1.ChangeDutyCycle(0)
@@ -164,10 +169,7 @@ def control_rotation_imu(reference,sensor_imu,history = []):
 		prev_time = current_time
 		prev_error = error_reference
 	new_rotation = error_reference + reference
-	if new_rotation >= OFFSET_YAW:
-		new_rotation = new_rotation % OFFSET_YAW
-	if new_rotation > OFFSET_YAW//2 and new_rotation < OFFSET_YAW:
-		new_rotation = new_rotation - OFFSET_YAW
+	new_rotation = normalize_angle(new_rotation)
 	print(f'success performing {new_rotation}°\n')
 	pwm_left_1.stop()
 	pwm_left_2.stop()

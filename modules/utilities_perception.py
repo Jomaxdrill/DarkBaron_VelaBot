@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 from constants_perception import *
-
 def convert_bgr_to_hsv(image):
 	return cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -145,9 +144,9 @@ def process_image_contours(image, color, crop=True):
 	blurry_mask = blurry_image(cropped_image)
 	hsv_image = convert_bgr_to_hsv(blurry_mask)
 	mask_hsv = create_hsv_mask(hsv_image,color)
-	#blurry_median = median_blurry_filter(mask_hsv)
+	blurry_median = median_blurry_filter(mask_hsv)
 	#removing noise
-	morph_1 = erosion_to_dilation(mask_hsv)
+	morph_1 = erosion_to_dilation(blurry_median)
 	#closing small holes inside the foreground objects, or small black points on the object.
 	final_mask = dilation_to_erosion(morph_1)
 	contours = get_contours(final_mask)
@@ -219,10 +218,10 @@ def show_area(image, color_block, text_align = 10):
 	area, aspect_ratio,center = area_aspect_ratio_center(block_test)
 	#print(f'area: {area}, aspect ratio: {aspect_ratio}, center: {center}')
 	#image_center = draw_center_image(block_test)
-	aprox_distance = obtain_distance(color_block, aspect_ratio, area)#distance_to_block_by(area, aspect_ratio)
+	aprox_range, aprox_distance = obtain_distance(color_block,area, aspect_ratio)#distance_to_block_by(area, aspect_ratio)
 	aprox_angle = angle_block_gripper_by(center)
 	image_area = cv2.putText(block_shape,f'Area: {area} pix2',(text_align,50),FONT,2,COLORS_TEXTS[color_block],2)
-	image_distance = cv2.putText(image_area,f'dist: {aprox_distance} cm',(text_align,100),FONT,2,COLORS_TEXTS[color_block],2)
+	image_distance = cv2.putText(image_area,f'{aprox_range},{aprox_distance} cm',(text_align,100),FONT,2,COLORS_TEXTS[color_block],2)
 	image_aspect = cv2.putText(image_distance,f'aspect: {round(aspect_ratio,3)}',(text_align,150),FONT,2,COLORS_TEXTS[color_block],2)
 	image_angle = cv2.putText(image_aspect,f'angle: {round(aprox_angle,2)} deg',(text_align,200),FONT,2,COLORS_TEXTS[color_block],2)
 	return image_angle
@@ -270,21 +269,21 @@ def distance_to_block_by(area, aspect_ratio):
 	else:
 		return 'Far Object'
 
-def obtain_distance(color, aspect_ratio, area):
+def obtain_distance(color, area, aspect_ratio):
     channel = DISTANCE_RANGES[color]
     if not channel:
         raise Exception (f"Color '{color}' not found in distance ranges.")
     if area <= 0:
-        return 'Stop'
+        return 'Stop', 2
     if aspect_ratio < 0.55:
-        return 'Away'
+        return 'Away', 250
     if 0.55<= aspect_ratio <= 0.7:
         # Binary search or linear interpolation over 'low_ar'
         area_dist_list = channel['low_ar']
         if area <= area_dist_list[0][0]:
-            return 'Away'
+            return 'Away', 250
         if area >= area_dist_list[-1][0]:
-            return 'Close'
+            return 'Close', 8
         for idx in range(len(area_dist_list) - 1):
             a1, d1 = area_dist_list[idx]
             a2, d2 = area_dist_list[idx + 1]
@@ -293,25 +292,25 @@ def obtain_distance(color, aspect_ratio, area):
                 break
         print(f'dist aprox is {dist_aprox} cm')
         if area_dist_list[0][1]>= dist_aprox >=area_dist_list[11][1]:
-            return 'Remote'
+            return 'Remote', dist_aprox
         elif area_dist_list[12][1]>= dist_aprox >=area_dist_list[22][1]:
-            return 'Far'
+            return 'Far', dist_aprox
         elif area_dist_list[23][1]>= dist_aprox >=area_dist_list[44][1]:
-            return 'Near'
+            return 'Near', dist_aprox
         else:
-            return dist_aprox
+            return 'Unknown',dist_aprox 
 
     if aspect_ratio > 0.7:
         if aspect_ratio >=6:
-            return 'Stop'
+            return 'Stop', 2
         if 3 <= aspect_ratio <= 4:
-            return 'Catch'
+            return 'Catch', 0
         # Binary search or linear interpolation over 'low_ar'
         ap_dist_list = channel['high_ar']
         if aspect_ratio <= ap_dist_list[0][0]:
-            return 'Near'
+            return 'Near', 10
         if aspect_ratio >= ap_dist_list[-1][0]:
-            return 'Stop'
+            return 'Stop', 2
         for idx in range(len(ap_dist_list) - 1):
             a1, d1 = ap_dist_list[idx]
             a2, d2 = ap_dist_list[idx + 1]
@@ -320,9 +319,9 @@ def obtain_distance(color, aspect_ratio, area):
                 break
         print(f'dist aprox is {dist_aprox} cm')
         if ap_dist_list[0][1]>= dist_aprox >=ap_dist_list[11][1]:
-            return 'Close'
+            return 'Close', dist_aprox
         else:
-            return dist_aprox
+            return 'Unknown', dist_aprox
 
 
 
@@ -346,16 +345,16 @@ def check_block_gripper(image, color):
 		area, aspect, center = area_aspect_ratio_center(closest_block)
 		angle  = angle_block_gripper_by(center)
 		#*check angle is between (-1,1)
-		if np.abs(angle) > 1:
-			print('Not in proper angle to be considered caught')
+		if np.abs(angle) > 4:
+			print(f'Not in proper angle to be considered caught, angle is {angle}')
 			return False
-		#*on average aspect ratio is between 1.5-3
-		if not (1.5 <= aspect <= 3):
-			print('Not in proper aspect ratio to be considered caught')
-			return False
-		if not (50000 <= area <= 60000):
-			print('Not in proper area to be considered caught')
-			return False
+		# #*on average aspect ratio is between 1.5-3
+		# if not (1.5 <= aspect <= 5):
+		# 	print(f'Not in proper aspect ratio to be considered caught,aspect ratio is {aspect}')
+		# 	return False
+		# if not (50000 <= area <= 62000):
+		# 	print(f'Not in proper area to be considered caught, area is {area}')
+		# 	return False
 		#*check if the block is in the horizontal zone
 		if not (CENTER_X_IMAGE -200 < center[0] < CENTER_X_IMAGE +200):
 			print('Not vert aligned to consider gripped')
