@@ -18,6 +18,7 @@ def init_gpio():
 	gpio.setup(ENCODER_LEFT, gpio.IN, pull_up_down=gpio.PUD_UP)
 	gpio.setup(ENCODER_RIGHT, gpio.IN, pull_up_down=gpio.PUD_UP)
 	#*setup gripper
+	print('setup gripper ')
 	gpio.setup(GRIPPER_PIN, gpio.OUT)
 	print('Setup complete')
 def init_serial_read():

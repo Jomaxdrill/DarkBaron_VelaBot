@@ -153,39 +153,13 @@ def process_image_contours(image, color, crop=True):
 	return contours
 
 
-def process_image_debug(image, color, crop=True):
-	#remove initial noise
-	cropped_image = crop_half_image(image) if crop else image
-	cv2.imshow(cropped_image)
-	cv2.waitKey(0)
-	blurry_mask = blurry_image(cropped_image)
-	cv2.imshow(blurry_mask)
-	cv2.waitKey(0)
-	hsv_image = convert_bgr_to_hsv(blurry_mask)
-	cv2.imshow(hsv_image)
-	cv2.waitKey(0)
-	mask_hsv = create_hsv_mask(hsv_image,color)
-	cv2.imshow(mask_hsv)
-	cv2.waitKey(0)
-	blurry_median = median_blurry_filter(mask_hsv)
-	cv2.imshow(blurry_median)
-	cv2.waitKey(0)
-	#removing noise
-	morph_1 = erosion_to_dilation(blurry_median)
-	cv2.imshow(morph_1)
-	cv2.waitKey(0)
-	#closing small holes inside the foreground objects, or small black points on the object.
-	final_mask = dilation_to_erosion(morph_1)
-	cv2.imshow(final_mask)
-	cv2.waitKey(0)
-	
+
 #TODO: Check how to filter noisy contours, areaa too small or big
-def find_block(image, color, draw=False, crop=True):
+def find_blocks(image, color, draw=False, crop=True):
 	contours = process_image_contours(image, color, crop)
 	print(f'contours found of {color}: {len(contours)}')
 	info_contours = [ get_contour_box(cnt) for cnt in contours ]
 	image_to_draw = image.copy()
-	#determine what to do
 	if draw:
 		for inf_cnt in info_contours:
 			image_to_draw = draw_min_enclosing_rectangle(image_to_draw, inf_cnt)
@@ -209,14 +183,14 @@ def get_nearest_block(info_contours, pending = False):
 	if pending:
 		return info_contours[areas_all.index(max(areas_all))]
 	aspect_ratios = [width/height for _,_,width,height in info_contours]
-	filter_noisy_contours = [area for idx, area in enumerate(areas_all) if area >= NOISY_CONTOUR_AREA or aspect_ratios[idx] <=6 ]
+	filter_noisy_contours = [area for idx, area in enumerate(areas_all) if area >= NOISY_CONTOUR_AREA or 0.3<= aspect_ratios[idx] <=6 ]
 	if len(filter_noisy_contours) == 0:
 		return False
 	return info_contours[areas_all.index(max(filter_noisy_contours))]
 
 def inform_block(image, color_block):
 	#process the image to find potential blocks
-	_, info_contours = find_block(image, color_block,draw=False,crop=True)
+	_, info_contours = find_blocks(image, color_block,draw=False,crop=True)
 	#check if there are any blocks detected
 	if len(info_contours):
 		#find the block with the greatest area that is also the closest one to the robot
@@ -235,7 +209,7 @@ def convert_white_area(image):
     image[0:CAMERA_MAIN_RESOLUTION[1]//2, :] = 255
     return image
 def show_area(image, color_block, text_align = 10):
-	block_shape, info_contours = find_block(image, color_block, True, False)
+	block_shape, info_contours = find_blocks(image, color_block, True, False)
 	# print(f'image shape: {image.shape}')
 	# # plt.imshow(block_shape)
 	# # plt.show()
@@ -243,6 +217,8 @@ def show_area(image, color_block, text_align = 10):
 	if len(info_contours) == 0:
 		return block_shape
 	block_test = get_nearest_block(info_contours)
+	if not block_test:
+		return image
 	area, aspect_ratio,center = area_aspect_ratio_center(block_test)
 	#print(f'area: {area}, aspect ratio: {aspect_ratio}, center: {center}')
 	#image_center = draw_center_image(block_test)
@@ -289,7 +265,7 @@ def distance_to_block_by(area, aspect_ratio):
 	elif area >= NOISY_CONTOUR_AREA:
 			if 1 <= aspect_ratio < 3:
 				return 'Close Object'
-			if 3 < aspect_ratio < 4:
+			if 3 <= aspect_ratio < 4:
 				return 'In range to catch'
 			if aspect_ratio >= 4:
 				return 'Too Close'
@@ -320,9 +296,9 @@ def obtain_distance(color, area, aspect_ratio):
         print(f'dist aprox block {color} is {dist_aprox} cm')
         if area_dist_list[0][1]>= dist_aprox >=area_dist_list[11][1]:
             return 'Remote', dist_aprox
-        elif area_dist_list[12][1]>= dist_aprox >=area_dist_list[22][1]:
+        elif area_dist_list[11][1]>= dist_aprox >=area_dist_list[22][1]:
             return 'Far', dist_aprox
-        elif area_dist_list[23][1]>= dist_aprox >=area_dist_list[44][1]:
+        elif area_dist_list[22][1]>= dist_aprox >=area_dist_list[44][1]:
             return 'Near', dist_aprox
         else:
             return 'Not sure',dist_aprox 
@@ -330,8 +306,8 @@ def obtain_distance(color, area, aspect_ratio):
     if aspect_ratio > 0.7:
         if aspect_ratio >=6:
             return 'Stop', 2
-        if 2 <= aspect_ratio <= 4.6:
-            return 'Catch', 0
+        if 2 <= aspect_ratio <= 5.5 and area > 25000:
+            return 'Catch', 0.5
         # Binary search or linear interpolation over 'low_ar'
         ap_dist_list = channel['high_ar']
         if aspect_ratio <= ap_dist_list[0][0]:
@@ -345,7 +321,7 @@ def obtain_distance(color, area, aspect_ratio):
                 dist_aprox = (d1 + d2) / 2
                 break
         print(f'dist aprox block {color} is {dist_aprox} cm')
-        if ap_dist_list[0][1]>= dist_aprox >=ap_dist_list[12][1]:
+        if ap_dist_list[0][1]>= dist_aprox >=ap_dist_list[10][1]:
             return 'Close', dist_aprox
         else:
             return 'Not sure', dist_aprox
@@ -367,7 +343,7 @@ def check_block_gripper(image, color):
 	closest_block = inform_block(image, color)
 	print(f'block {color} considered to caught found')
 	if closest_block:
-		area, aspect, center = area_aspect_ratio_center(closest_block)
+		_, _, center = area_aspect_ratio_center(closest_block)
 		angle  = angle_block_gripper_by(center)
 		#*check angle is between (-1,1)
 		if np.abs(angle) > 4:
@@ -389,7 +365,7 @@ def in_gripper_zone(center, cropped= False):
         center x image is {CENTER_X_IMAGE} while center x block is {center[0]}')
 		return False
 	height =  CAMERA_MAIN_RESOLUTION[1]//2 if cropped else CAMERA_MAIN_RESOLUTION[1]
-	if (height-220 < center[1] < height):
+	if not (height-220 < center[1] < height):
 		print(f'Not hort aligned to consider gripped,  \
         center y image is {height} while center  y block is {center[1]}')
 		return False
@@ -400,9 +376,9 @@ def hide_caught_block(image):
 	height, width = image.shape[:2]
 	#check if it was cropped
 	if height < CAMERA_MAIN_RESOLUTION[1]:
-		image[int(height*0.50) :,int(0.25*width):int(0.70*width)] = 255
+		image[int(height*0.50) :,int(0.25*width):int(0.75*width)] = 255
 	else:
-		image[int(height*0.75) :,int(0.25*width):int(0.70*width)] = 255
+		image[int(height*0.75) :,int(0.25*width):int(0.75*width)] = 255
 	return image
 
 #TODO: Play with homography to generate a bird view of the robot

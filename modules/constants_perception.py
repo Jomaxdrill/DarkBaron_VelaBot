@@ -6,39 +6,51 @@ from utilities_camera import CAMERA_MAIN_RESOLUTION
 #TODO: UNDERSTAND HOW ILLUMINATION CAN AFFECT THE MEASUREMENTS
 ###*COLOR RANGES
 #*GREEN+
-LOWER_GREEN = np.array([35, 60, 180])# V 180 at home with light #75 with kitchen lights
-UPPER_GREEN = np.array([85, 255, 255])
+LOWER_GREEN1 = np.array([35, 125, 175])# V 180 at home with light #75 with kitchen lights
+UPPER_GREEN1 = np.array([85, 255, 255])
+#*GREEN+
+LOWER_GREEN2 = np.array([35, 60, 200])# V 180 at home with light #75 with kitchen lights
+UPPER_GREEN2 = np.array([85, 255, 255])
 #*RED (Two ranges)
 # First range: Hue 0-5 (lower red)
-LOWER_RED1 = np.array([0, 95, 165])# 
+LOWER_RED1 = np.array([0, 150, 60])# 
 UPPER_RED1 = np.array([10, 255, 255])
 # Second range: Hue 160-179 (upper red)
-LOWER_RED2 = np.array([160, 95, 60])# V 165 at home with light #60 with kitchen lights
+LOWER_RED2 = np.array([160, 95, 165])# V 165 at home with light #60 with kitchen lights, 110 sometimes
 UPPER_RED2 = np.array([179, 255, 255])
 
 #*BLUE
-LOWER_BLUE = np.array([90, 85, 165])# V 165 at home with light #60 with kitchen lights
-UPPER_BLUE = np.array([130, 255, 255])
+LOWER_BLUE1 = np.array([90, 100, 90])# V 165 at home with light #60 with kitchen lights, 90 sometimes
+UPPER_BLUE1 = np.array([130, 255, 255])
+
+LOWER_BLUE2 = np.array([90, 100, 120])# V 165 at home with light #60 with kitchen lights, 90 sometimes
+UPPER_BLUE2 = np.array([130, 255, 255])
 #*BLACK
 LOWER_BLACK = np.array([0, 0, 0])
 UPPER_BLACK = np.array([180, 100, 80])
 # Updated BLOCK_COLORS to handle red's dual ranges
 BLOCK_COLORS = {
     'green': {
-        'ranges': [{'lower': LOWER_GREEN, 'upper': UPPER_GREEN}]
+        'ranges': [
+            {'lower': LOWER_GREEN1, 'upper': UPPER_GREEN1},
+            {'lower': LOWER_GREEN2, 'upper': UPPER_GREEN2}
+        ]
     },
     'red': {
         'ranges': [
             {'lower': LOWER_RED1, 'upper': UPPER_RED1},
-            {'lower': LOWER_RED2, 'upper': UPPER_RED2}
+            {'lower': LOWER_RED2, 'upper': UPPER_RED2},
         ]
     },
     'blue': {
-        'ranges': [{'lower': LOWER_BLUE, 'upper': UPPER_BLUE}]
+        'ranges': [
+            {'lower': LOWER_BLUE1, 'upper': UPPER_BLUE1},
+            {'lower': LOWER_BLUE2, 'upper': UPPER_BLUE2}
+        ]
     },
-    'black': {
-        'ranges': [{'lower': LOWER_BLACK, 'upper': UPPER_BLACK}]
-    }
+    # 'black': {
+    #     'ranges': [{'lower': LOWER_BLACK, 'upper': UPPER_BLACK}]
+    # }
 }
 #TODO: IMPROVE THE THRESHOLDS FOR ARROW
 LOWER_GREEN_ARROW = np.array([75, 95, 60]) #50,100,100
@@ -61,9 +73,9 @@ COLORS_TEXTS = {
 	'black': (0, 0, 0),
 	}
 ####*FILTERS
-GAUSS_KERNEL =  (5,5)
-MEDIAN_BLUR_KERNEL = 5
-KERNEL_MORPH = np.ones((5, 5), np.uint8)
+GAUSS_KERNEL =  (3,3)
+MEDIAN_BLUR_KERNEL = 3
+KERNEL_MORPH = np.ones((3, 3), np.uint8)
 
 ###*TEXT
 FONT = cv2.FONT_HERSHEY_PLAIN
