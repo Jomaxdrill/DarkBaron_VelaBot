@@ -283,7 +283,7 @@ def obtain_distance(color, area, aspect_ratio):
         if area <= area_dist_list[0][0]:
             return 'Away', 250
         if area >= area_dist_list[-1][0]:
-            return 'Close', 8
+            return 'Close', 28
         for idx in range(len(area_dist_list) - 1):
             a1, d1 = area_dist_list[idx]
             a2, d2 = area_dist_list[idx + 1]
@@ -298,12 +298,12 @@ def obtain_distance(color, area, aspect_ratio):
         elif area_dist_list[23][1]>= dist_aprox >=area_dist_list[44][1]:
             return 'Near', dist_aprox
         else:
-            return 'Unknown',dist_aprox 
+            return 'Not sure',dist_aprox 
 
     if aspect_ratio > 0.7:
         if aspect_ratio >=6:
             return 'Stop', 2
-        if 3 <= aspect_ratio <= 4:
+        if 2 <= aspect_ratio <= 4:
             return 'Catch', 0
         # Binary search or linear interpolation over 'low_ar'
         ap_dist_list = channel['high_ar']
@@ -318,10 +318,10 @@ def obtain_distance(color, area, aspect_ratio):
                 dist_aprox = (d1 + d2) / 2
                 break
         print(f'dist aprox is {dist_aprox} cm')
-        if ap_dist_list[0][1]>= dist_aprox >=ap_dist_list[11][1]:
+        if ap_dist_list[0][1]>= dist_aprox >=ap_dist_list[12][1]:
             return 'Close', dist_aprox
         else:
-            return 'Unknown', dist_aprox
+            return 'Not sure', dist_aprox
 
 
 
