@@ -6,18 +6,18 @@ from utilities_camera import CAMERA_MAIN_RESOLUTION
 #TODO: UNDERSTAND HOW ILLUMINATION CAN AFFECT THE MEASUREMENTS
 ###*COLOR RANGES
 #*GREEN+
-LOWER_GREEN = np.array([35, 60, 75])#145 #155
+LOWER_GREEN = np.array([35, 60, 180])# V 180 at home with light #75 with kitchen lights
 UPPER_GREEN = np.array([85, 255, 255])
 #*RED (Two ranges)
 # First range: Hue 0-5 (lower red)
-LOWER_RED1 = np.array([0, 95, 60])
+LOWER_RED1 = np.array([0, 95, 165])# 
 UPPER_RED1 = np.array([10, 255, 255])
 # Second range: Hue 160-179 (upper red)
-LOWER_RED2 = np.array([160, 95, 60])
+LOWER_RED2 = np.array([160, 95, 60])# V 165 at home with light #60 with kitchen lights
 UPPER_RED2 = np.array([179, 255, 255])
 
 #*BLUE
-LOWER_BLUE = np.array([90, 85, 60])
+LOWER_BLUE = np.array([90, 85, 165])# V 165 at home with light #60 with kitchen lights
 UPPER_BLUE = np.array([130, 255, 255])
 #*BLACK
 LOWER_BLACK = np.array([0, 0, 0])
@@ -62,7 +62,7 @@ COLORS_TEXTS = {
 	}
 ####*FILTERS
 GAUSS_KERNEL =  (5,5)
-MEDIAN_BLUR_KERNEL = 7
+MEDIAN_BLUR_KERNEL = 5
 KERNEL_MORPH = np.ones((5, 5), np.uint8)
 
 ###*TEXT

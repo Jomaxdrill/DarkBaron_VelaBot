@@ -50,6 +50,8 @@ def get_vector(node_a, node_b):
 	return (node_b[0] - node_a[0], node_b[1] - node_a[1])
 
 def control_translation(action, reference, history, args = []):
+	if not reference:
+		return history
 	last_position = history[-1] if history else (0.0, 0.0, 0.0)
 	pos_x, pos_y, angle = last_position
 	transf_matrix = transformation_robot_to_world(angle, (pos_x, pos_y))

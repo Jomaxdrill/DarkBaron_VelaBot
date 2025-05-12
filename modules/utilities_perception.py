@@ -39,7 +39,7 @@ def combine_stack(*images):
 	return stacked_image
 
 def get_contours(image):
-	contours, _ = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+	contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 	#print(f'contours found: {len(contours)}')
 	return contours
 
@@ -141,16 +141,44 @@ def get_orientation(tip,contours):
 def process_image_contours(image, color, crop=True):
 	#remove initial noise
 	cropped_image = crop_half_image(image) if crop else image
+	#removing noise
 	blurry_mask = blurry_image(cropped_image)
 	hsv_image = convert_bgr_to_hsv(blurry_mask)
 	mask_hsv = create_hsv_mask(hsv_image,color)
-	blurry_median = median_blurry_filter(mask_hsv)
-	#removing noise
-	morph_1 = erosion_to_dilation(blurry_median)
+	#blurry_median = median_blurry_filter(mask_hsv)
+	morph_1 = erosion_to_dilation(mask_hsv)
 	#closing small holes inside the foreground objects, or small black points on the object.
 	final_mask = dilation_to_erosion(morph_1)
 	contours = get_contours(final_mask)
 	return contours
+
+
+def process_image_debug(image, color, crop=True):
+	#remove initial noise
+	cropped_image = crop_half_image(image) if crop else image
+	cv2.imshow(cropped_image)
+	cv2.waitKey(0)
+	blurry_mask = blurry_image(cropped_image)
+	cv2.imshow(blurry_mask)
+	cv2.waitKey(0)
+	hsv_image = convert_bgr_to_hsv(blurry_mask)
+	cv2.imshow(hsv_image)
+	cv2.waitKey(0)
+	mask_hsv = create_hsv_mask(hsv_image,color)
+	cv2.imshow(mask_hsv)
+	cv2.waitKey(0)
+	blurry_median = median_blurry_filter(mask_hsv)
+	cv2.imshow(blurry_median)
+	cv2.waitKey(0)
+	#removing noise
+	morph_1 = erosion_to_dilation(blurry_median)
+	cv2.imshow(morph_1)
+	cv2.waitKey(0)
+	#closing small holes inside the foreground objects, or small black points on the object.
+	final_mask = dilation_to_erosion(morph_1)
+	cv2.imshow(final_mask)
+	cv2.waitKey(0)
+	
 #TODO: Check how to filter noisy contours, areaa too small or big
 def find_block(image, color, draw=False, crop=True):
 	contours = process_image_contours(image, color, crop)
@@ -222,14 +250,13 @@ def show_area(image, color_block, text_align = 10):
 	aprox_angle = angle_block_gripper_by(center)
 	image_area = cv2.putText(block_shape,f'Area: {area} pix2',(text_align,50),FONT,2,COLORS_TEXTS[color_block],2)
 	image_distance = cv2.putText(image_area,f'{aprox_range},{aprox_distance} cm',(text_align,100),FONT,2,COLORS_TEXTS[color_block],2)
-	image_aspect = cv2.putText(image_distance,f'aspect: {round(aspect_ratio,3)}',(text_align,150),FONT,2,COLORS_TEXTS[color_block],2)
+	image_aspect = cv2.putText(image_distance,f'aspect:{center} {round(aspect_ratio,2)}',(text_align,150),FONT,2,COLORS_TEXTS[color_block],2)
 	image_angle = cv2.putText(image_aspect,f'angle: {round(aprox_angle,2)} deg',(text_align,200),FONT,2,COLORS_TEXTS[color_block],2)
 	return image_angle
 
 #get the angle in degrees from the center of the rectangle to the center of the image
 def angle_block_gripper_by(center_block):
 	return (CENTER_X_IMAGE - center_block[0]) * PIXEL_ANGLE
-
 
 def draw_center_image(image, center = CAMERA_MAIN_RESOLUTION):
 	#draw center of the image
@@ -239,8 +266,8 @@ def draw_center_image(image, center = CAMERA_MAIN_RESOLUTION):
 	return image
 def crop_half_image(image, center = CAMERA_MAIN_RESOLUTION):
 	cropped_image = image[center[1]//2:, 0:]
-	#print(f'cropped size is :{np.shape(cropped_image)}')
-	return image
+	print(f'cropped size is :{np.shape(cropped_image)}')
+	return cropped_image
 
 def distance_to_block_by(area, aspect_ratio):
 	#aprox_distance= (np.log(45923/area))/0.056
@@ -290,7 +317,7 @@ def obtain_distance(color, area, aspect_ratio):
             if a1 <= area <= a2:
                 dist_aprox = (d1 + d2) / 2
                 break
-        print(f'dist aprox is {dist_aprox} cm')
+        print(f'dist aprox block {color} is {dist_aprox} cm')
         if area_dist_list[0][1]>= dist_aprox >=area_dist_list[11][1]:
             return 'Remote', dist_aprox
         elif area_dist_list[12][1]>= dist_aprox >=area_dist_list[22][1]:
@@ -303,7 +330,7 @@ def obtain_distance(color, area, aspect_ratio):
     if aspect_ratio > 0.7:
         if aspect_ratio >=6:
             return 'Stop', 2
-        if 2 <= aspect_ratio <= 4:
+        if 2 <= aspect_ratio <= 4.6:
             return 'Catch', 0
         # Binary search or linear interpolation over 'low_ar'
         ap_dist_list = channel['high_ar']
@@ -317,13 +344,11 @@ def obtain_distance(color, area, aspect_ratio):
             if a1 <= aspect_ratio <= a2:
                 dist_aprox = (d1 + d2) / 2
                 break
-        print(f'dist aprox is {dist_aprox} cm')
+        print(f'dist aprox block {color} is {dist_aprox} cm')
         if ap_dist_list[0][1]>= dist_aprox >=ap_dist_list[12][1]:
             return 'Close', dist_aprox
         else:
             return 'Not sure', dist_aprox
-
-
 
 #TODO: Check if gripper is open or close by an image
 def check_gripper_state(image):
@@ -349,29 +374,36 @@ def check_block_gripper(image, color):
 			print(f'Not in proper angle to be considered caught, angle is {angle}')
 			return False
 		# #*on average aspect ratio is between 1.5-3
-		# if not (1.5 <= aspect <= 5):
-		# 	print(f'Not in proper aspect ratio to be considered caught,aspect ratio is {aspect}')
-		# 	return False
-		# if not (50000 <= area <= 62000):
-		# 	print(f'Not in proper area to be considered caught, area is {area}')
-		# 	return False
-		#*check if the block is in the horizontal zone
-		if not (CENTER_X_IMAGE -200 < center[0] < CENTER_X_IMAGE +200):
-			print('Not vert aligned to consider gripped')
-			return False
-		if (CAMERA_MAIN_RESOLUTION[1]-220 < center[1] < CAMERA_MAIN_RESOLUTION[1]):
-			print('Not hor aligned to consider gripped')
+		final_check = in_gripper_zone(center, True)
+		if not final_check:
 			return False
 		print(f'Block {color} was caught yeaaah')
 		return True
 	print(f'Block {color} Not found to confirm it was caught')
 	return False
 
+def in_gripper_zone(center, cropped= False):
+	#*check if the block is in the horizontal zone
+	if not (CENTER_X_IMAGE -200 < center[0] < CENTER_X_IMAGE +200):
+		print(f'Not vert aligned to consider gripped,  \
+        center x image is {CENTER_X_IMAGE} while center x block is {center[0]}')
+		return False
+	height =  CAMERA_MAIN_RESOLUTION[1]//2 if cropped else CAMERA_MAIN_RESOLUTION[1]
+	if (height-220 < center[1] < height):
+		print(f'Not hort aligned to consider gripped,  \
+        center y image is {height} while center  y block is {center[1]}')
+		return False
+	return True
 
-def hide_caught_block(image, contour):
-    #fill with white or black the contour where the block it's supossed to be
-    #
-	pass
+def hide_caught_block(image):
+	#hide the zone of the caught block always
+	height, width = image.shape[:2]
+	#check if it was cropped
+	if height < CAMERA_MAIN_RESOLUTION[1]:
+		image[int(height*0.50) :,int(0.25*width):int(0.70*width)] = 255
+	else:
+		image[int(height*0.75) :,int(0.25*width):int(0.70*width)] = 255
+	return image
 
 #TODO: Play with homography to generate a bird view of the robot
 
