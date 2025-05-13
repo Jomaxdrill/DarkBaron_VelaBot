@@ -17,8 +17,10 @@ K_D_ROT_IMU = 0.35#1.175
 ERROR_STEPS = 1
 
 
-PWM_LINEAR = 40 #75 turnning #30 advance
-PWM_ROT = 75
+PWM_LINEAR_SLOW = 40
+PWM_LINEAR_FAST = 55 
+PWM_ROT_MIN = 57.5
+PWM_ROT_MIN2 = 75
 
 UNITARY_VECTOR_X = [1,0] #the angle is always respect to the x axis
 
@@ -49,9 +51,10 @@ def get_vector(node_a, node_b):
 	"""
 	return (node_b[0] - node_a[0], node_b[1] - node_a[1])
 
-def control_translation(action, reference, history = []):
+def control_translation(action, reference, history, move_fast = False):
 	if not reference:
 		return history
+	pwm_move = PWM_LINEAR_FAST if move_fast else PWM_LINEAR_SLOW
 	last_position = history[-1] if history else (0.0, 0.0, 0.0)
 	pos_x, pos_y, angle = last_position
 	transf_matrix = transformation_robot_to_world(angle, (pos_x, pos_y))
@@ -63,12 +66,12 @@ def control_translation(action, reference, history = []):
 	advancement = 0
 	duty_cycle = 0
 	pwm_left, pwm_right, flag_type = action()
-	pwm_left.start(PWM_LINEAR) # USE % OF duty cycle
-	pwm_right.start(PWM_LINEAR) # USE % OF duty cycle
-	print(f'reference is {reference}')
+	pwm_left.start(pwm_move) # USE % OF duty cycle
+	pwm_right.start(pwm_move) # USE % OF duty cycle
+	print(f'reference linear is {reference} cm')
 	steps_reference = round(reference/MIN_RESOLUTION_LIN)
-	print(f'steps reference: {steps_reference} ')
-	while ticks <= steps_reference:
+	print(f'cycles encoder reference: {steps_reference} ')
+	while ticks < steps_reference:
 		#print(f'sonar:{distance_sonar()} cm')
 		if int(gpio.input(ENCODER_RIGHT)) != int(button_R):
 			button_R = int(gpio.input(ENCODER_RIGHT))
@@ -80,7 +83,7 @@ def control_translation(action, reference, history = []):
 			#print(counter_L)
 		diff_counter = counter_L - counter_R
 		#print('encoder error',diff_counter)
-		duty_cycle =  PWM_LINEAR - K_linear* abs(diff_counter)
+		duty_cycle =  pwm_move - K_linear* abs(diff_counter)
 		#print(f'duty cycle is: {duty_cycle}')
 		#left motor is going faster than right motor
 		if diff_counter >= ERROR_STEPS:
@@ -88,10 +91,6 @@ def control_translation(action, reference, history = []):
 		#right motor is going faster than left motor
 		if diff_counter <= -ERROR_STEPS:
 			pwm_right.ChangeDutyCycle(duty_cycle)
-		# if counter_R >= steps_reference:
-		# 	pwm_right.stop()
-		# if counter_L >= steps_reference:
-		# 	pwm_left.stop()
 		ticks = round((counter_R + counter_L)/2)
 		advancement = ticks*MIN_RESOLUTION_LIN
 		#print(f'\ntraveled: {advancement}cm\n')
@@ -105,14 +104,16 @@ def control_translation(action, reference, history = []):
 			history.append(pos_to_record)
 	pwm_left.stop()
 	pwm_right.stop()
-	print(f'success performing {reference} cm\n')
+	print(f'success performing {advancement} cm\n')
 	turn_off_motors()
 	time.sleep(0.25)
 	return history
 
-def control_rotation_imu(reference,sensor_imu,history = []):
+def control_rotation_imu(reference, sensor_imu, history, rotate_fast = False):
 	last_position = history[-1] if history else (0.0, 0.0, 0)
 	# _, _, angle = last_position
+	min_duty_cycle = PWM_ROT_MIN2 if rotate_fast else PWM_ROT_MIN
+	error_tolerance = 4 if rotate_fast else 0.6
 	error_reference = np.inf
 	prev_time = None
 	derivative = 0
@@ -125,7 +126,7 @@ def control_rotation_imu(reference,sensor_imu,history = []):
 	pwm_left_2.start(0)
 	pwm_right_1.start(0)
 	pwm_right_2.start(0)
-	while abs(error_reference) >= 0.6:
+	while abs(error_reference) >= error_tolerance:
 		yaw = read_imu_yaw_angle(sensor_imu)
 		if yaw is None:
 			continue
@@ -153,7 +154,7 @@ def control_rotation_imu(reference,sensor_imu,history = []):
 		#print('calculated duty cycle', duty_cycle)
 		#print(f'control signal: {duty_cycle}')
 		#Apply saturation as duty cycle can't be negative or lower certain threshold to work
-		duty_cycle = max(min(duty_cycle, 100),57.5)#70 #55 in full power
+		duty_cycle = max(min(duty_cycle, 100),min_duty_cycle)#70 #55 in full power
 		#print('real duty cycle', duty_cycle)
 		#turn to left direction
 		if error_reference > 0:

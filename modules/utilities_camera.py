@@ -21,11 +21,11 @@ def init_camera():
 
 def take_image(camera, save_it=False):
     camera.start()
-    time.sleep(0.25)
+    time.sleep(0.1)
     if save_it:
         camera.capture_file(f'camera_pi_{int(time.time())}.jpg')
     image_camera = camera.capture_array()
-    time.sleep(0.25)
+    time.sleep(0.1)
     return image_camera
 
 def record_video(camera, post_callback, action):

@@ -9,8 +9,8 @@ PWM_CYCLE_MOTOR = 75 #%
 
 #*SERVO
 PWM_FREQ_GRIPPER = 50 #Hz
-ACTION_GRIPPER = {"CLOSE": (8,0.45), "OPEN": (13,4)} #Values are the duty cycle and seconds
-
+ACTION_GRIPPER = {"CLOSE": (8,0.8), "OPEN": (13,4)} #Values are the duty cycle and seconds
+SOFT_SEC = 0.65
 def turn_off_motors():
 	gpio.output(MOTOR_L_1, False)
 	gpio.output(MOTOR_L_2, False)
@@ -94,13 +94,15 @@ def motor_pwm_setup():
 def init_servo():
 	pwm_pin = gpio.PWM(GRIPPER_PIN, PWM_FREQ_GRIPPER)
 	return pwm_pin
-def action_gripper(pwm_pin, action_type):
+def action_gripper(pwm_pin, action_type, soft=False):
 	pwm_pin.start(0)
 	pwm_pin.ChangeDutyCycle(ACTION_GRIPPER[action_type][0])
-	time.sleep(ACTION_GRIPPER[action_type][1])
+	time_signal = SOFT_SEC if soft else ACTION_GRIPPER[action_type][1]
+	time.sleep(time_signal)
+	pwm_pin.stop()
 
 def turn_off_servo(pwm_pin):
 	pwm_pin.stop()
-	gpio.cleanup(GRIPPER_PIN)
+	gpio.output(GRIPPER_PIN, False)
 
 

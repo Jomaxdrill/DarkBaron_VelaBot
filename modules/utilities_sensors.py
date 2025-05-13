@@ -19,7 +19,7 @@ def init_sonar():
  
 def distance_sonar_average():
 	dist_measurements = []
-	counter_measure =0
+	counter_measure = 0
 	while counter_measure < 30:
 		dist = distance_sonar()
 		#print(f"Distance # {counter_measure}:",  dist, "cm")
@@ -53,7 +53,7 @@ def distance_sonar():
 
 	#calculate the distance in cm
 	distance = (pulse_duration * SPEED_SOUND) / 2
-	distance = round(distance, 2)
+	distance = round(distance, 2) or 0
 	return distance
 
 #imu sensor

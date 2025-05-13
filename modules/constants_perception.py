@@ -4,26 +4,31 @@ from utilities_camera import CAMERA_MAIN_RESOLUTION
 
 
 #TODO: UNDERSTAND HOW ILLUMINATION CAN AFFECT THE MEASUREMENTS
+#TODO: SET THS HSV IN THE GRAND CHALLENGE USED
 ###*COLOR RANGES
 #*GREEN+
-LOWER_GREEN1 = np.array([35, 125, 175])# V 180 at home with light #75 with kitchen lights
+# V 180 at home with light #75 with kitchen lights
+LOWER_GREEN1 = np.array([35, 85, 140])
 UPPER_GREEN1 = np.array([85, 255, 255])
 #*GREEN+
-LOWER_GREEN2 = np.array([35, 60, 200])# V 180 at home with light #75 with kitchen lights
+# V 180 at home with light #75 with kitchen lights
+LOWER_GREEN2 = np.array([35, 85, 170])
 UPPER_GREEN2 = np.array([85, 255, 255])
 #*RED (Two ranges)
+# V 165 at home with light #60 with kitchen lights, 110 sometimes
 # First range: Hue 0-5 (lower red)
-LOWER_RED1 = np.array([0, 150, 60])# 
+LOWER_RED1 = np.array([0, 115, 90])# 
 UPPER_RED1 = np.array([10, 255, 255])
 # Second range: Hue 160-179 (upper red)
-LOWER_RED2 = np.array([160, 95, 165])# V 165 at home with light #60 with kitchen lights, 110 sometimes
+LOWER_RED2 = np.array([160, 115, 90])
 UPPER_RED2 = np.array([179, 255, 255])
 
 #*BLUE
-LOWER_BLUE1 = np.array([90, 100, 90])# V 165 at home with light #60 with kitchen lights, 90 sometimes
+# V 165 at home with light #60 with kitchen lights, 90 sometimes
+LOWER_BLUE1 = np.array([90, 115, 106])
 UPPER_BLUE1 = np.array([130, 255, 255])
-
-LOWER_BLUE2 = np.array([90, 100, 120])# V 165 at home with light #60 with kitchen lights, 90 sometimes
+# V 165 at home with light #60 with kitchen lights, 90 sometimes
+LOWER_BLUE2 = np.array([90, 115, 106])
 UPPER_BLUE2 = np.array([130, 255, 255])
 #*BLACK
 LOWER_BLACK = np.array([0, 0, 0])
@@ -73,8 +78,8 @@ COLORS_TEXTS = {
 	'black': (0, 0, 0),
 	}
 ####*FILTERS
-GAUSS_KERNEL =  (3,3)
-MEDIAN_BLUR_KERNEL = 3
+GAUSS_KERNEL =  (5,5)
+MEDIAN_BLUR_KERNEL = 5
 KERNEL_MORPH = np.ones((3, 3), np.uint8)
 
 ###*TEXT
@@ -85,17 +90,7 @@ GRIPPER_COLOR = 'black'
 NOISY_CONTOUR_AREA = 120 #minimum area of the contour to be considered
 PIXEL_ANGLE = 0.062 #angle in degrees that represents a pixel movement #0.0605
 CENTER_X_IMAGE = int(CAMERA_MAIN_RESOLUTION[0]//2)
-#LOOK UP TABLE FOR DEPTH ESTIMATION
-# Lookup table data (area in cm², distance in cm)
-# DISTANCES_Y = np.array([67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 
-#                         39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16])
-# AREAS_X = np.array([2400, 2542, 2583, 2646, 2688, 2925, 2970, 2992, 3220, 3337, 3456, 3577, 3626, 3675, 3850, 3978, 4240, 4374, 4510,
-#                     4704, 4902, 5192, 5310, 5460, 5828, 6048, 6336, 6666, 7072, 7314, 7776, 8103, 8562, 9009, 9360, 10044, 10668,
-#                     10920, 12193, 13080, 13630, 14453, 15500, 16480, 17596, 19203, 20585, 22440, 24375, 26187, 28408, 22605])
 
-AREAS_X = (16848, 17976, 19314, 20520, 22066, 23912, 25452, 28329, 30360, 33120, 35787, 36729, 37350,
-		38566, 39083, 39991, 40512, 41175, 41211, 41600, 40752)
-DISTANCES_Y = (30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10)
 
 DISTANCE_RANGES = {
     'red': {

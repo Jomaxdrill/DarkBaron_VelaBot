@@ -6,21 +6,21 @@ def convert_bgr_to_hsv(image):
 
 
 def create_hsv_mask(image, color):
-    # Get the color ranges from BLOCK_COLORS
-    color_info = BLOCK_COLORS[color]
-    ranges = color_info['ranges']
+	# Get the color ranges from BLOCK_COLORS
+	color_info = BLOCK_COLORS[color]
+	ranges = color_info['ranges']
 
-    # Initialize an empty mask
-    mask = np.zeros(image.shape[:2], dtype=np.uint8)
+	# Initialize an empty mask
+	mask = np.zeros(image.shape[:2], dtype=np.uint8)
 
-    # Apply cv2.inRange for each range and combine with bitwise OR
-    for range_info in ranges:
-        lower = range_info['lower']
-        upper = range_info['upper']
-        range_mask = cv2.inRange(image, lower, upper)
-        mask = cv2.bitwise_or(mask, range_mask)
-    
-    return mask
+	# Apply cv2.inRange for each range and combine with bitwise OR
+	for range_info in ranges:
+		lower = range_info['lower']
+		upper = range_info['upper']
+		range_mask = cv2.inRange(image, lower, upper)
+		mask = cv2.bitwise_or(mask, range_mask)
+	
+	return mask
 
 def blurry_image(image_gray):
 	return cv2.GaussianBlur(image_gray, GAUSS_KERNEL, 0, 0, cv2.BORDER_DEFAULT)
@@ -40,7 +40,6 @@ def combine_stack(*images):
 
 def get_contours(image):
 	contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-	#print(f'contours found: {len(contours)}')
 	return contours
 
 def draw_contours(image, contours,color):
@@ -145,8 +144,8 @@ def process_image_contours(image, color, crop=True):
 	blurry_mask = blurry_image(cropped_image)
 	hsv_image = convert_bgr_to_hsv(blurry_mask)
 	mask_hsv = create_hsv_mask(hsv_image,color)
-	#blurry_median = median_blurry_filter(mask_hsv)
-	morph_1 = erosion_to_dilation(mask_hsv)
+	blurry_median = median_blurry_filter(mask_hsv)
+	morph_1 = erosion_to_dilation(blurry_median)
 	#closing small holes inside the foreground objects, or small black points on the object.
 	final_mask = dilation_to_erosion(morph_1)
 	contours = get_contours(final_mask)
@@ -177,57 +176,73 @@ def area_aspect_ratio_center(info_contour):
 	center = (center_x,center_y)
 	return area, aspect_ratio, center
 
-def get_nearest_block(info_contours, pending = False):
-	areas_all = [width*height for _,_,width,height in info_contours]
-	#if we get in a scenario where there is a block missing but probably is too far to catch priorize the first max find
-	if pending:
-		return info_contours[areas_all.index(max(areas_all))]
-	aspect_ratios = [width/height for _,_,width,height in info_contours]
-	filter_noisy_contours = [area for idx, area in enumerate(areas_all) if area >= NOISY_CONTOUR_AREA or 0.3<= aspect_ratios[idx] <=6 ]
-	if len(filter_noisy_contours) == 0:
-		return False
-	return info_contours[areas_all.index(max(filter_noisy_contours))]
 
-def inform_block(image, color_block):
+
+def get_info_all_blocks(image, color):
+	_, info_contours = find_blocks(image, color, draw=False, crop=True)
+	if not len(info_contours):
+		return []
+	areas_all = get_areas(info_contours)
+	aspect_ratios = get_aspect_ratios(info_contours)
+	#filter noisy contours
+	return [contour for idx, contour in enumerate(info_contours) 
+         	if areas_all[idx] >= NOISY_CONTOUR_AREA and 
+         0.4<= aspect_ratios[idx] <=6 ]
+def get_areas(info_contours):
+    return [width*height for _,_,width,height in info_contours]
+
+def get_aspect_ratios(info_contours):
+    return [width/height for _,_,width,height in info_contours]
+def get_nearest_block(info_contours):
+	if not len(info_contours):
+		return False
+	areas_all = get_areas(info_contours)
+	aspect_ratios = get_aspect_ratios(info_contours)
+	filtered_noisy_contours = [area for idx, area in enumerate(areas_all) 
+                            if areas_all[idx] >= NOISY_CONTOUR_AREA and 
+        					0.4<= aspect_ratios[idx] <=6 and
+             				info_contours[idx][3]>10 and info_contours[idx][2]>20]
+	if not len(filtered_noisy_contours):
+		return False
+	return info_contours[areas_all.index(max(filtered_noisy_contours))]
+
+def inform_block(image, color_block, exhaustive=True):
 	#process the image to find potential blocks
 	_, info_contours = find_blocks(image, color_block,draw=False,crop=True)
 	#check if there are any blocks detected
 	if len(info_contours):
 		#find the block with the greatest area that is also the closest one to the robot
-		target_block = get_nearest_block(info_contours)
+		#in exhaustive find the first coincidence, important for search
+		target_block = get_nearest_block(info_contours) if exhaustive else info_contours[0]
 		return target_block
 	return False
 
 def add_white_area(image):
-    # Create a blank white image
-    blank_img = np.ones((CAMERA_MAIN_RESOLUTION[1]//2, CAMERA_MAIN_RESOLUTION[0], 3), dtype=np.uint8) * 255
-    # Stack images vertically
-    result_img = np.vstack((blank_img, image))
-    return result_img
+	# Create a blank white image
+	blank_img = np.ones((CAMERA_MAIN_RESOLUTION[1]//2, CAMERA_MAIN_RESOLUTION[0], 3), dtype=np.uint8) * 255
+	# Stack images vertically
+	result_img = np.vstack((blank_img, image))
+	return result_img
 
 def convert_white_area(image):
-    image[0:CAMERA_MAIN_RESOLUTION[1]//2, :] = 255
-    return image
+	image[0:CAMERA_MAIN_RESOLUTION[1]//2, :] = 255
+	return image
 def show_area(image, color_block, text_align = 10):
 	block_shape, info_contours = find_blocks(image, color_block, True, False)
-	# print(f'image shape: {image.shape}')
-	# # plt.imshow(block_shape)
-	# # plt.show()
-	# print("Running tests...")
-	if len(info_contours) == 0:
+	if not len(info_contours):
 		return block_shape
 	block_test = get_nearest_block(info_contours)
+	print(f'block {color_block} closest is:', block_test)
 	if not block_test:
 		return image
 	area, aspect_ratio,center = area_aspect_ratio_center(block_test)
 	#print(f'area: {area}, aspect ratio: {aspect_ratio}, center: {center}')
-	#image_center = draw_center_image(block_test)
 	aprox_range, aprox_distance = obtain_distance(color_block,area, aspect_ratio)#distance_to_block_by(area, aspect_ratio)
 	aprox_angle = angle_block_gripper_by(center)
-	image_area = cv2.putText(block_shape,f'Area: {area} pix2',(text_align,50),FONT,2,COLORS_TEXTS[color_block],2)
-	image_distance = cv2.putText(image_area,f'{aprox_range},{aprox_distance} cm',(text_align,100),FONT,2,COLORS_TEXTS[color_block],2)
-	image_aspect = cv2.putText(image_distance,f'aspect:{center} {round(aspect_ratio,2)}',(text_align,150),FONT,2,COLORS_TEXTS[color_block],2)
-	image_angle = cv2.putText(image_aspect,f'angle: {round(aprox_angle,2)} deg',(text_align,200),FONT,2,COLORS_TEXTS[color_block],2)
+	image_area = cv2.putText(block_shape,f'{area} pix2',(text_align,50),FONT,2,COLORS_TEXTS[color_block],2)
+	image_distance = cv2.putText(image_area,f'{aprox_range},{aprox_distance}cm',(text_align,100),FONT,2,COLORS_TEXTS[color_block],2)
+	image_aspect = cv2.putText(image_distance,f'ap:{center} {round(aspect_ratio,2)}',(text_align,150),FONT,2,COLORS_TEXTS[color_block],2)
+	image_angle = cv2.putText(image_aspect,f'{round(aprox_angle,2)} deg',(text_align,200),FONT,2,COLORS_TEXTS[color_block],2)
 	return image_angle
 
 #get the angle in degrees from the center of the rectangle to the center of the image
@@ -242,132 +257,101 @@ def draw_center_image(image, center = CAMERA_MAIN_RESOLUTION):
 	return image
 def crop_half_image(image, center = CAMERA_MAIN_RESOLUTION):
 	cropped_image = image[center[1]//2:, 0:]
-	print(f'cropped size is :{np.shape(cropped_image)}')
+	#print(f'cropped size is :{np.shape(cropped_image)}')
 	return cropped_image
 
-def distance_to_block_by(area, aspect_ratio):
-	#aprox_distance= (np.log(45923/area))/0.056
-	#aprox_distance = -0.002015*area + 69.156
-	# Handle edge cases: area outside the table range
-	#*aspect ratio plays an important role in the close distance
-	if aspect_ratio < 1:
-		if area < AREAS_X[0] or area < 1000:
-			return 'Far Object'
-		if area == AREAS_X[-1]:
-			return DISTANCES_Y[-1]
-		# Search for the area in the table
-		for idx in range(len(AREAS_X) - 1):
-			if area == AREAS_X[idx]:  # Exact match
-				return DISTANCES_Y[idx]
-			elif AREAS_X[idx] < area < AREAS_X[idx + 1]:  # Area is between AREAS_X[idx] and AREAS_X[idx+1]
-				# Return the average of the corresponding DISTANCES_Y
-				return round( (DISTANCES_Y[idx] + DISTANCES_Y[idx + 1]) / 2 ,2)
-	elif area >= NOISY_CONTOUR_AREA:
-			if 1 <= aspect_ratio < 3:
-				return 'Close Object'
-			if 3 <= aspect_ratio < 4:
-				return 'In range to catch'
-			if aspect_ratio >= 4:
-				return 'Too Close'
-	else:
-		return 'Far Object'
 
 def obtain_distance(color, area, aspect_ratio):
-    channel = DISTANCE_RANGES[color]
-    if not channel:
-        raise Exception (f"Color '{color}' not found in distance ranges.")
-    if area <= 0:
-        return 'Stop', 2
-    if aspect_ratio < 0.55:
-        return 'Away', 250
-    if 0.55<= aspect_ratio <= 0.7:
-        # Binary search or linear interpolation over 'low_ar'
-        area_dist_list = channel['low_ar']
-        if area <= area_dist_list[0][0]:
-            return 'Away', 250
-        if area >= area_dist_list[-1][0]:
-            return 'Close', 28
-        for idx in range(len(area_dist_list) - 1):
-            a1, d1 = area_dist_list[idx]
-            a2, d2 = area_dist_list[idx + 1]
-            if a1 <= area <= a2:
-                dist_aprox = (d1 + d2) / 2
-                break
-        print(f'dist aprox block {color} is {dist_aprox} cm')
-        if area_dist_list[0][1]>= dist_aprox >=area_dist_list[11][1]:
-            return 'Remote', dist_aprox
-        elif area_dist_list[11][1]>= dist_aprox >=area_dist_list[22][1]:
-            return 'Far', dist_aprox
-        elif area_dist_list[22][1]>= dist_aprox >=area_dist_list[44][1]:
-            return 'Near', dist_aprox
-        else:
-            return 'Not sure',dist_aprox 
+	channel = DISTANCE_RANGES[color]
+	if not channel:
+		raise Exception (f"Color '{color}' not found in distance ranges.")
+	if area <= 0:
+		return 'Stop', 2
+	if aspect_ratio < 0.55:
+		return 'Away', 250
+	if 0.55<= aspect_ratio <= 0.7:
+		# Binary search or linear interpolation over 'low_ar'
+		area_dist_list = channel['low_ar']
+		if area <= area_dist_list[0][0]:
+			return 'Away', 250
+		if area >= area_dist_list[-1][0]:
+			return 'Close', 28
+		for idx in range(len(area_dist_list) - 1):
+			a1, d1 = area_dist_list[idx]
+			a2, d2 = area_dist_list[idx + 1]
+			if a1 <= area <= a2:
+				dist_aprox = (d1 + d2) / 2
+				break
+		print(f'dist aprox block {color} is {dist_aprox} cm')
+		if area_dist_list[0][1]>= dist_aprox >=area_dist_list[11][1]:
+			return 'Remote', dist_aprox
+		elif area_dist_list[11][1]>= dist_aprox >=area_dist_list[22][1]:
+			return 'Far', dist_aprox
+		elif area_dist_list[22][1]>= dist_aprox >=area_dist_list[44][1]:
+			return 'Near', dist_aprox
+		else:
+			return 'Not sure',dist_aprox 
 
-    if aspect_ratio > 0.7:
-        if aspect_ratio >=6:
-            return 'Stop', 2
-        if 2 <= aspect_ratio <= 5.5 and area > 25000:
-            return 'Catch', 0.5
-        # Binary search or linear interpolation over 'low_ar'
-        ap_dist_list = channel['high_ar']
-        if aspect_ratio <= ap_dist_list[0][0]:
-            return 'Near', 10
-        if aspect_ratio >= ap_dist_list[-1][0]:
-            return 'Stop', 2
-        for idx in range(len(ap_dist_list) - 1):
-            a1, d1 = ap_dist_list[idx]
-            a2, d2 = ap_dist_list[idx + 1]
-            if a1 <= aspect_ratio <= a2:
-                dist_aprox = (d1 + d2) / 2
-                break
-        print(f'dist aprox block {color} is {dist_aprox} cm')
-        if ap_dist_list[0][1]>= dist_aprox >=ap_dist_list[10][1]:
-            return 'Close', dist_aprox
-        else:
-            return 'Not sure', dist_aprox
-
-#TODO: Check if gripper is open or close by an image
-def check_gripper_state(image):
-	contours = process_image_contours(image,GRIPPER_COLOR)
-	#potentially the gripper is open
-	if len(contours) == 2:
-		return 'OPEN'
-	#potentially the gripper is close
-	elif len(contours) == 1:
-		return 'CLOSE'
-	else:
-		return False
+	if aspect_ratio > 0.7:
+		if aspect_ratio >=6:
+			return 'Stop', 2
+		if 2 <= aspect_ratio <= 5.5 and area > 25000:
+			return 'Catch', 0.5
+		# Binary search or linear interpolation over 'low_ar'
+		ap_dist_list = channel['high_ar']
+		if aspect_ratio <= ap_dist_list[0][0]:
+			return 'Near', 10
+		if aspect_ratio >= ap_dist_list[-1][0]:
+			return 'Stop', 2
+		for idx in range(len(ap_dist_list) - 1):
+			a1, d1 = ap_dist_list[idx]
+			a2, d2 = ap_dist_list[idx + 1]
+			if a1 <= aspect_ratio <= a2:
+				dist_aprox = (d1 + d2) / 2
+				break
+		print(f'dist aprox block {color} is {dist_aprox} cm')
+		if ap_dist_list[0][1]>= dist_aprox >=ap_dist_list[10][1]:
+			return 'Close', dist_aprox
+		else:
+			return 'Not sure', dist_aprox
 
 #check if block is in the gripper
 def check_block_gripper(image, color):
 	closest_block = inform_block(image, color)
-	print(f'block {color} considered to caught found')
+	print(f'checking block {color} to be considered caught')
 	if closest_block:
-		_, _, center = area_aspect_ratio_center(closest_block)
+		area, aspect_ratio, center = area_aspect_ratio_center(closest_block)
 		angle  = angle_block_gripper_by(center)
+		range_block, _ = obtain_distance(color, area, aspect_ratio)
 		#*check angle is between (-1,1)
 		if np.abs(angle) > 4:
 			print(f'Not in proper angle to be considered caught, angle is {angle}')
 			return False
+		if range_block != 'Catch':
+			print(f'Not in range to be considered caught, range is {range_block}')
+			return False
 		# #*on average aspect ratio is between 1.5-3
+		if aspect_ratio < 1.5:
+			print(f'Not aspect ratio to be considered caught, ap is {aspect_ratio}')
+			return False
 		final_check = in_gripper_zone(center, True)
 		if not final_check:
 			return False
 		print(f'Block {color} was caught yeaaah')
 		return True
-	print(f'Block {color} Not found to confirm it was caught')
+	print(f'Block {color} non caught')
 	return False
 
 def in_gripper_zone(center, cropped= False):
 	#*check if the block is in the horizontal zone
 	if not (CENTER_X_IMAGE -200 < center[0] < CENTER_X_IMAGE +200):
 		print(f'Not vert aligned to consider gripped,  \
-        center x image is {CENTER_X_IMAGE} while center x block is {center[0]}')
+		center x image is {CENTER_X_IMAGE} while center x block is {center[0]}')
 		return False
 	height =  CAMERA_MAIN_RESOLUTION[1]//2 if cropped else CAMERA_MAIN_RESOLUTION[1]
 	if not (height-220 < center[1] < height):
 		print(f'Not hort aligned to consider gripped,  \
-        center y image is {height} while center  y block is {center[1]}')
+		center y image is {height} while center  y block is {center[1]}')
 		return False
 	return True
 
