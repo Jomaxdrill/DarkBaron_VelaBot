@@ -106,7 +106,7 @@ def control_translation(action, reference, history, move_fast = False):
 	pwm_right.stop()
 	print(f'success performing {advancement} cm\n')
 	turn_off_motors()
-	time.sleep(0.25)
+	time.sleep(0.5)
 	return history
 
 def control_rotation_imu(reference, sensor_imu, history, rotate_fast = False):
@@ -178,7 +178,7 @@ def control_rotation_imu(reference, sensor_imu, history, rotate_fast = False):
 	pwm_left_2.stop()
 	pwm_right_1.stop()
 	pwm_right_2.stop()
-	time.sleep(0.25)
+	time.sleep(0.5)
 	turn_off_motors()
 	history.append((*last_position[0:2], new_rotation))
 	return history
