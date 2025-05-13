@@ -9,6 +9,7 @@ import copy
 import traceback
 TOTAL_BLOCKS = 3
 LOCALIZE_SEQUENCE = [0,90,180,270,0]
+SEARCH_SEQUENCE_STEPS = [0,45,-45,90,-90,0]
 SEARCH_SEQUENCE = [0,20,340,45,315,90,270,0]
 EDGE_ZONE_BLOCK = 30.48 #cm
 TOTAL_MAP = np.array([304.8, 304.8])
@@ -30,14 +31,6 @@ has_block = False
 # CORNER_GOAL = (30.48, 335.28) #cm
 # block_sequence = ['red','blue','green']
 def first_planner(block_sequence, record_pos, goal_coordinates, camera, imu_sensor, servo):
-	# # Initialize GPIO pins
-	# init_gpio()
-	# # Initialize camera
-	# camera = init_camera()
-	# # Initialize IMU sensor
-	# imu_sensor = init_serial_read()
-	# # Initialize servo
-	# servo = init_servo()
 	reached_block = False
 	getting_block = False
 	has_block = False
@@ -54,10 +47,10 @@ def first_planner(block_sequence, record_pos, goal_coordinates, camera, imu_sens
 			if not reached_block:
 				print(f'PLANNER: Block {block_sequence[-1]} objective not found, search again')
 				continue
-			getting_block = check_secured_block(camera, block_sequence[-1], record_pos)
-			if not getting_block:
-				print(f'PLANNER: Block {block_sequence[-1]} objective not found, search again')
-				continue
+			# getting_block = check_secured_block(camera, block_sequence[-1], record_pos)
+			# if not getting_block:
+			# 	print(f'PLANNER: Block {block_sequence[-1]} objective not found, search again')
+			# 	continue
 			has_block = True
 		else:
 			print(f'PLANNER: Block {block_sequence[-1]} redirecting to goal {goal_coordinates[-1]}')
@@ -153,17 +146,15 @@ def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos, goal_co
 	range_block = 'Away'
 	dist_block = 0
 	action_gripper(servo,'OPEN')
-	time.sleep(0.1)
 	while range_block != 'Catch':
 		print('Checking wall')
-		had_to_avoid = avoid_hitting_wall(record_pos, imu_sensor)
-		if had_to_avoid:
-			action_gripper(servo,'CLOSE')
-			time.sleep(0.1)
-			print('Had to avoid hitting wall. Search again')
-			return False
+		# had_to_avoid = avoid_hitting_wall(record_pos, imu_sensor)
+		# if had_to_avoid:
+		# 	action_gripper(servo,'CLOSE')
+		# 	print('Had to avoid hitting wall. Search again')
+		# 	return False
 		print('Checking obstacles')
-		avoid_other_blocks(record_pos, goal_coord, camera_pi, look_block = color_block)
+		#avoid_other_blocks(record_pos, goal_coord, camera_pi, look_block = color_block)
 		print('Finished avoiding obstacles search again')
 		#for every advancement align with the block as much as possible
 		aligned = align_with_block(camera_pi,imu_sensor,record_pos,color_block)
@@ -180,14 +171,15 @@ def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos, goal_co
 			control_translation(action, steps_to_advance, record_pos)
 		if range_block in ['Away','Far']:
 			steps_to_advance = DEFAULT_ADVANCE_DISTANCE*4
-		if range_block == 'Not sure':
-			steps_to_advance = dist_block/4
+		if range_block in ['Not sure']:
+			steps_to_advance = dist_block/3
 		else:
 			steps_to_advance = dist_block - OFFSET_TO_GRIPPER
 			if steps_to_advance < 0:
-				steps_to_advance = DEFAULT_ADVANCE_DISTANCE/4
+				steps_to_advance = DEFAULT_ADVANCE_DISTANCE/3
 		move_fast = True if steps_to_advance >= DEFAULT_ADVANCE_DISTANCE*4 else False
 		control_translation(action, steps_to_advance, record_pos, move_fast)
+	control_translation(reverse, MIN_RESOLUTION_LIN, record_pos)
 	action_gripper(servo,'CLOSE')
 	time.sleep(0.1)
 	return True
@@ -310,7 +302,7 @@ def avoid_other_blocks(record_pos, goal_coord, camera_pi, look_block = False):
 	#when taking block approximate where you might get a turn to do
 	if look_block:
 		print('aligning to find again block', look_block)
-		angle_to_turn = last_angle - 90 - last_angle/2 if direction == 'turn left' else last_angle + 90 + last_angle/2
+		angle_to_turn = last_angle - 90 - last_angle/3 if direction == 'turn left' else last_angle + 90 + last_angle/3
 		angle_to_turn = normalize_angle(angle_to_turn)
 		print('rotate to correct bot by', angle_to_turn)
 		control_rotation_imu(angle_to_turn, imu_sensor, record_pos)
@@ -338,10 +330,10 @@ def advance_to_goal(record_pos, goal_coord,imu_sensor):
 	vector_to_goal = rotate_to_goal(imu_sensor, record_pos, goal_coord)
 	steps_to_advance = np.linalg.norm(vector_to_goal)
 	print(f'steps to advance to goal is {steps_to_advance} cm')
-	if steps_to_advance >= EDGE_ZONE_BLOCK*2: 
-		print('Advancing might be too be long. For precaution advance a set distance')
-		steps_to_advance = EDGE_ZONE_BLOCK*1.25
-	control_translation(forward, steps_to_advance, record_pos)
+	# if steps_to_advance >= EDGE_ZONE_BLOCK*2: 
+	# 	print('Advancing might be too be long. For precaution advance a set distance')
+	# 	steps_to_advance = EDGE_ZONE_BLOCK*1.25
+	control_translation(forward, steps_to_advance+15, record_pos)
 	#recalculate the distance 
 	vector_to_goal = get_vector(record_pos[-1], goal_coord)
 	distance_to_goal = np.linalg.norm(vector_to_goal)
@@ -356,9 +348,9 @@ def move_to_goal(servo,camera_pi, imu_sensor, goal_coordinates, record_pos, bloc
 		if distance_to_goal > CONST_ZONE_SIDE:
 			print('Not near construction zone')
 			distance_to_goal = advance_to_goal(record_pos, goal_coordinates[-1],imu_sensor)
-			safe_to_move = avoid_other_blocks(record_pos,goal_coordinates[-1],camera_pi)
-			if safe_to_move:
-				distance_to_goal = advance_to_goal(record_pos, goal_coordinates[-1],imu_sensor)
+			# safe_to_move = avoid_other_blocks(record_pos,goal_coordinates[-1],camera_pi)
+			# if safe_to_move:
+			# 	distance_to_goal = advance_to_goal(record_pos, goal_coordinates[-1],imu_sensor)
 			
 		elif CONST_ZONE_SIDE <= distance_to_goal <= EDGE_ZONE_BLOCK:
 			print('Reaching construction zone')
@@ -366,51 +358,72 @@ def move_to_goal(servo,camera_pi, imu_sensor, goal_coordinates, record_pos, bloc
 		else:
 			#open gripper and place object as the place zone has been reached 
 			action_gripper(servo,'OPEN')
-			time.sleep(0.1)
 			#*send email to notify the block has been placed
 			block_placed = block_sequence.pop()
-			#send_email(camera_pi, block_placed)
+			send_email(camera_pi, block_placed)
 			goal_coordinates.pop()
 			print(f'block placed is {block_placed}')
 			print(f'block sequence pending is', block_sequence)
 			return True
 
 def avoid_hitting_wall(record_pos, imu_sensor):
-	print('checking colliding....')
-	risk_collide = False
-	dist_sonar = distance_sonar()
-	time.sleep(0.25)
-	dist_sonar = dist_sonar + OFFEST_SONAR_IMU
-	print('dist sonar is ', dist_sonar)
-	by_sonar =  dist_sonar < EDGE_ZONE_BLOCK*1.25
-	last_x, last_y, _ = record_pos[-1]
-	print('last coordinate was', record_pos[-1])
-	print(f'Total map is {TOTAL_MAP[0]} width, {TOTAL_MAP[1]} height')
-	by_position = not((EDGE_ZONE_BLOCK/2 <= last_x <= TOTAL_MAP[0] - EDGE_ZONE_BLOCK) and \
-	(EDGE_ZONE_BLOCK/2<= last_y <= TOTAL_MAP[1] - EDGE_ZONE_BLOCK))
-	print('risk by sonar',by_sonar)
-	print('risk by position',by_position)
-	risk_collide = by_sonar or by_position
-	if risk_collide:
-	 	# Move back a bit
-		print('Performing anti avoid hitting wall actions')
-		control_translation(reverse, EDGE_ZONE_BLOCK*1.5, record_pos,move_fast=True)
-		#aim to center of the map 
-		vector_to_goal = get_vector(record_pos[-1], CENTER_MAP)
-		angle_to_goal = get_angle(vector_to_goal)
-		angle_to_goal = normalize_angle(angle_to_goal)
-		control_rotation_imu(angle_to_goal, imu_sensor, record_pos,rotate_fast=True)
-		return True
+	# print('checking colliding....')
+	# risk_collide = False
+	# dist_sonar = distance_sonar()
+	# dist_sonar = dist_sonar + OFFEST_SONAR_IMU
+	# print('dist sonar is ', dist_sonar)
+	# by_sonar =  dist_sonar < EDGE_ZONE_BLOCK*1.25
+	# by_position = False
+	# # last_x, last_y, _ = record_pos[-1]
+	# # print('last coordinate was', record_pos[-1])
+	# # print(f'Total map is {TOTAL_MAP[0]} width, {TOTAL_MAP[1]} height')
+	# # by_position = not((EDGE_ZONE_BLOCK/2 <= last_x <= TOTAL_MAP[0] - EDGE_ZONE_BLOCK) and \
+	# # (EDGE_ZONE_BLOCK/2<= last_y <= TOTAL_MAP[1] - EDGE_ZONE_BLOCK))
+	# # print('risk by sonar',by_sonar)
+	# # print('risk by position',by_position)
+	# risk_collide = by_sonar or by_position
+	# if risk_collide:
+	#  	# Move back a bit
+	# 	print('Performing anti avoid hitting wall actions')
+	# 	control_translation(reverse, EDGE_ZONE_BLOCK*1.5, record_pos,move_fast=True)
+	# 	#aim to center of the map 
+	# 	vector_to_goal = get_vector(record_pos[-1], CENTER_MAP)
+	# 	angle_to_goal = get_angle(vector_to_goal)
+	# 	angle_to_goal = normalize_angle(angle_to_goal)
+	# 	control_rotation_imu(angle_to_goal, imu_sensor, record_pos,rotate_fast=True)
+	# 	return True
+	# return False
+	# dist_sonar = distance_sonar()
+	# real_dist = dist_sonar + OFFEST_SONAR_IMU
+	# if real_dist <= EDGE_ZONE_BLOCK:
+	# 	print('Performing anti avoid hitting wall actions')
+	# 	control_translation(reverse, EDGE_ZONE_BLOCK*1.5, record_pos,move_fast=True)
+	# 	#aim to center of the map 
+	# 	vector_to_goal = get_vector(record_pos[-1], CENTER_MAP)
+	# 	angle_to_goal = get_angle(vector_to_goal)
+	# 	angle_to_goal = normalize_angle(angle_to_goal)
+	# 	control_rotation_imu(angle_to_goal, imu_sensor, record_pos,rotate_fast=True)
+	# 	return True
 	return False
 
+def generate_search_sequence(current_angle):
+	sequence_to_derive = []
+	for value_offset in SEARCH_SEQUENCE_STEPS:
+		angle_search = value_offset + current_angle
+		angle_search = normalize_angle(angle_search)
+		sequence_to_derive.append(angle_search)
+	return sequence_to_derive
+
 def mode_search(record_pos, camera_pi,color_block, imu_sensor):
-	for value in SEARCH_SEQUENCE:
+	sequence_to_search = generate_search_sequence(record_pos[-1][2])
+	for value in sequence_to_search:
 		#control the rotation of the robot to search for block
 		print(f'Searching {color_block}....')
+	
 		control_rotation_imu(value, imu_sensor, record_pos,rotate_fast=True)
 		#take an image
 		image = take_image(camera_pi)
-		suspect_block_found = inform_block(image, color_block, exhaustive=False)
+		suspect_block_found = inform_block(image, color_block, exhaustive=True)
 		if suspect_block_found:
 			print('look something was found')
 			return suspect_block_found
@@ -426,7 +439,7 @@ def turn_back_robot(record_pos,imu_sensor):
 
 def back_to_map(record_pos, servo,color_block, imu_sensor):
 	#when the robot at least has delivered one block going back to map
-	steps_to_advance = DEFAULT_ADVANCE_DISTANCE
+	steps_to_advance = DEFAULT_ADVANCE_DISTANCE*3
 	control_translation(reverse, steps_to_advance , record_pos)
 	#close gripper
 	action_gripper(servo,'CLOSE')
@@ -448,12 +461,14 @@ try:
 	servo = init_servo()
 	# # Record positions
 	record_pos = []
-	record_pos.append(INITIAL_POS)
-	print('Starting point is', record_pos[-1])
-	goal_coordinates =  create_goal_coordinates(30.48, 274.32)#[(0,300)]*TOTAL_BLOCKS##[(83,15),(83,15),(83,15)][0,90](60.96,304.8)
-	print(f'First goal coordinate for {bl_seq_copy[-1]}  block is {goal_coordinates[-1]}')
+	record_pos.append((30.48,30.48,0))
+	#print('Starting point is', record_pos[-1])
+	goal_coordinates = [(60.96,243.84)]*TOTAL_BLOCKS*3 #[(60.96,243.84)]*TOTAL_BLOCKS*3  #create_goal_coordinates(30.48, 274.32)#[(0,300)]*TOTAL_BLOCKS##[(83,15),(83,15),(83,15)][0,90](60.96,304.8)
+	#print(f'First goal coordinate for {bl_seq_copy[-1]}  block is {goal_coordinates[-1]}')
 	first_planner(bl_seq_copy, record_pos, goal_coordinates, camera_pi_4, imu_sensor, servo)
 	#print(create_goal_coordinate(30.48, 274.32))
+	# control_translation(forward, DEFAULT_ADVANCE_DISTANCE/2, record_pos,move_fast=True)
+	# control_rotation_imu(45, imu_sensor, record_pos,rotate_fast=True)
 	# move_to_goal(servo,camera_pi_4, imu_sensor, goal_coordinates, record_pos, bl_seq_copy)
 	# mode_search(record_pos, camera_pi_4, 'green', imu_sensor)
 	# block_caught = move_to_block(camera_pi_4, servo, imu_sensor, 'green', record_pos)

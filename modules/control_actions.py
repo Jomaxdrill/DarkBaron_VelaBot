@@ -19,8 +19,8 @@ ERROR_STEPS = 1
 
 PWM_LINEAR_SLOW = 40
 PWM_LINEAR_FAST = 55 
-PWM_ROT_MIN = 57.5
-PWM_ROT_MIN2 = 75
+PWM_ROT_MIN = 55
+PWM_ROT_MIN2 = 70
 
 UNITARY_VECTOR_X = [1,0] #the angle is always respect to the x axis
 
@@ -106,7 +106,7 @@ def control_translation(action, reference, history, move_fast = False):
 	pwm_right.stop()
 	print(f'success performing {advancement} cm\n')
 	turn_off_motors()
-	time.sleep(0.5)
+	time.sleep(0.25)
 	return history
 
 def control_rotation_imu(reference, sensor_imu, history, rotate_fast = False):
@@ -178,7 +178,7 @@ def control_rotation_imu(reference, sensor_imu, history, rotate_fast = False):
 	pwm_left_2.stop()
 	pwm_right_1.stop()
 	pwm_right_2.stop()
-	time.sleep(0.5)
+	time.sleep(0.25)
 	turn_off_motors()
 	history.append((*last_position[0:2], new_rotation))
 	return history

@@ -99,7 +99,7 @@ def action_gripper(pwm_pin, action_type, soft=False):
 	pwm_pin.ChangeDutyCycle(ACTION_GRIPPER[action_type][0])
 	time_signal = SOFT_SEC if soft else ACTION_GRIPPER[action_type][1]
 	time.sleep(time_signal)
-	pwm_pin.stop()
+	# pwm_pin.stop()
 
 def turn_off_servo(pwm_pin):
 	pwm_pin.stop()

@@ -7,6 +7,7 @@ import numpy as np
 OFFSET_YAW = 360
 RECORD_DATA = 10
 SPEED_SOUND = 34300
+TIMEOUT_HOLD= 0.04
 def record_count(encoder,counter,button):
 	if int(gpio.input(encoder)) != int(button):
 		button = int(gpio.input(encoder))
@@ -41,11 +42,16 @@ def distance_sonar():
 	gpio.output(TRIG, True)
 	time.sleep(0.00001)
 	gpio.output(TRIG, False)
-
+	start_time = time.time()
+	timeout = 0
 	#wait for ECHO to go high and low
-	while gpio.input(ECHO) == 0:
+	while gpio.input(ECHO) == 0 or timeout <=TIMEOUT_HOLD:
+		current_time = time.time()
+		timeout = current_time - start_time 
 		pulse_start = time.time()
-	while gpio.input(ECHO) == 1:
+	while gpio.input(ECHO) == 1 or timeout <=TIMEOUT_HOLD:
+		current_time = time.time()
+		timeout = current_time - start_time 
 		pulse_end = time.time()
 
 	#calculate the time difference
