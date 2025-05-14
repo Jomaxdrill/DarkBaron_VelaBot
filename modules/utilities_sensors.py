@@ -43,13 +43,16 @@ def distance_sonar():
 	time.sleep(0.00001)
 	gpio.output(TRIG, False)
 	start_time = time.time()
-	timeout = 0
+	#*this timeout is needed because for certain surfaces it doesn't return the ultra sonar wave
+	#*by doing this the measurement is not stuck although the exactitude is compromised a lot
+	timeout = 0 
 	#wait for ECHO to go high and low
-	while gpio.input(ECHO) == 0 or timeout <=TIMEOUT_HOLD:
+	while gpio.input(ECHO) == 0 and timeout <=TIMEOUT_HOLD:
 		current_time = time.time()
 		timeout = current_time - start_time 
 		pulse_start = time.time()
-	while gpio.input(ECHO) == 1 or timeout <=TIMEOUT_HOLD:
+	timeout = 0
+	while gpio.input(ECHO) == 1 and timeout <=TIMEOUT_HOLD:
 		current_time = time.time()
 		timeout = current_time - start_time 
 		pulse_end = time.time()

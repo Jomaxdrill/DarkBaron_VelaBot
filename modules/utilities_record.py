@@ -18,7 +18,8 @@ from utilities_camera import take_image
 smtpUser = 'mailtestdarkbaronvelabot@gmail.com'
 smtpPass = 'fvvelfyvyihcifss'
 # Destination email information
-toAdd = ['jcrespo@umd.edu','ENPM809TS19@gmail.com']
+#* 'ENPM809TS19@gmail.com' toAdd element
+toAdd = ['jcrespo@umd.edu']
 
 
 def send_email(camera, color):
