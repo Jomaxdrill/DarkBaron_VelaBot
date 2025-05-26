@@ -1,9 +1,9 @@
 
 #*-----------MOTORS PINS-------
-#LEFT WHEELS PINS-----------
+#*LEFT WHEELS PINS-----------
 MOTOR_L_1 = 31
 MOTOR_L_2 = 33
-#RIGHT WHEELS PINS----------
+#*RIGHT WHEELS PINS----------
 MOTOR_R_1 = 35
 MOTOR_R_2 = 37
 

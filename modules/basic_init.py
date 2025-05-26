@@ -21,6 +21,7 @@ def init_gpio():
 	print('setup gripper ')
 	gpio.setup(GRIPPER_PIN, gpio.OUT)
 	print('Setup complete')
+
 def init_serial_read():
 	print('init serial reading')
 	imu_sensor = serial.Serial(IMU_SERIAL, 9600)  # Adjust the port and baud rate as needed
@@ -31,6 +32,7 @@ def init_serial_read():
 			readed_line = imu_sensor.readline()
 			print(f'readed line {readed_line}.Ready to read yaw')
 			return imu_sensor
+
 def gameover():
 	gpio.cleanup()
 	print("Game Over")

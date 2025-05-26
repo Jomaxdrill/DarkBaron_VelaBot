@@ -2,15 +2,19 @@ from constants_pi import *
 import RPi.GPIO as gpio
 import time
 
-#*WHEELS
+#*------------------------
+###*WHEELS CONSTANTS
+#*------------------------
 TIME_MOTOR = 2 #seconds
 PWM_FREQ_MOTOR = 50 #Hz
 PWM_CYCLE_MOTOR = 75 #%
-
-#*SERVO
+#*------------------------
+###*SERVO CONTANTS
+#*------------------------
 PWM_FREQ_GRIPPER = 50 #Hz
 ACTION_GRIPPER = {"CLOSE": (8,0.8), "OPEN": (13,4)} #Values are the duty cycle and seconds
 SOFT_SEC = 0.65
+
 def turn_off_motors():
 	gpio.output(MOTOR_L_1, False)
 	gpio.output(MOTOR_L_2, False)
@@ -64,7 +68,6 @@ def turnright():
 	#Send all pins low and cleanup
 	turn_off_motors()
 
-
 def pivotleft():
 	#*Left wheels will go reverse
 	gpio.output(MOTOR_L_1, False)
@@ -91,15 +94,18 @@ def motor_pwm_setup():
 	pwm_right_2 = gpio.PWM(MOTOR_R_2, PWM_FREQ_MOTOR)
 	return pwm_left_1, pwm_left_2, pwm_right_1, pwm_right_2
 
+#*------------------------
+###*SERVO GRIPPER CONTROL
+#*------------------------
 def init_servo():
 	pwm_pin = gpio.PWM(GRIPPER_PIN, PWM_FREQ_GRIPPER)
 	return pwm_pin
+
 def action_gripper(pwm_pin, action_type, soft=False):
 	pwm_pin.start(0)
 	pwm_pin.ChangeDutyCycle(ACTION_GRIPPER[action_type][0])
 	time_signal = SOFT_SEC if soft else ACTION_GRIPPER[action_type][1]
 	time.sleep(time_signal)
-	# pwm_pin.stop()
 
 def turn_off_servo(pwm_pin):
 	pwm_pin.stop()

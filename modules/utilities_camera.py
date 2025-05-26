@@ -4,8 +4,11 @@ from picamera2 import MappedArray, Picamera2
 from picamera2.outputs import FfmpegOutput
 from picamera2.encoders import H264Encoder
 import time
-#*-----------CAMERA-------
-CAMERA_MAIN_RESOLUTION = (900,780)
+
+#*------------------------
+###*CAMERA SET
+#*------------------------
+CAMERA_MAIN_RESOLUTION = (900,780) #this was the optimal resolution
 CAMERA_LORE_RESOLUTION = (CAMERA_MAIN_RESOLUTION[0]//2, CAMERA_MAIN_RESOLUTION[1]//2)
 CAMERA_FPS = 30
 FORMAT_RGB = 'RGB888'

@@ -2,32 +2,25 @@ import numpy as np
 import cv2
 from utilities_camera import CAMERA_MAIN_RESOLUTION
 
-
-#TODO: UNDERSTAND HOW ILLUMINATION CAN AFFECT THE MEASUREMENTS
-#TODO: SET THS HSV IN THE GRAND CHALLENGE USED
+#*------------------------
 ###*COLOR RANGES
+#*------------------------
+#*THESE RANGES ARE CONSIDERING GOOD ILLUMINATION
 #*GREEN+
-# V 180 at home with light #75 with kitchen lights
 LOWER_GREEN1 = np.array([35, 85, 140])
 UPPER_GREEN1 = np.array([85, 255, 255])
-#*GREEN+
-# V 180 at home with light #75 with kitchen lights
 LOWER_GREEN2 = np.array([35, 85, 170])
 UPPER_GREEN2 = np.array([85, 255, 255])
-#*RED (Two ranges)
-# V 165 at home with light #60 with kitchen lights, 110 sometimes
+#*RED
 # First range: Hue 0-5 (lower red)
-LOWER_RED1 = np.array([0, 115, 90])# 
+LOWER_RED1 = np.array([0, 115, 90])#
 UPPER_RED1 = np.array([10, 255, 255])
 # Second range: Hue 160-179 (upper red)
 LOWER_RED2 = np.array([160, 115, 90])
 UPPER_RED2 = np.array([179, 255, 255])
-
 #*BLUE
-# V 165 at home with light #60 with kitchen lights, 90 sometimes
 LOWER_BLUE1 = np.array([90, 115, 106])
 UPPER_BLUE1 = np.array([130, 255, 255])
-# V 165 at home with light #60 with kitchen lights, 90 sometimes
 LOWER_BLUE2 = np.array([90, 115, 106])
 UPPER_BLUE2 = np.array([130, 255, 255])
 #*BLACK
@@ -57,11 +50,10 @@ BLOCK_COLORS = {
     #     'ranges': [{'lower': LOWER_BLACK, 'upper': UPPER_BLACK}]
     # }
 }
-#TODO: IMPROVE THE THRESHOLDS FOR ARROW
-LOWER_GREEN_ARROW = np.array([75, 95, 60]) #50,100,100
-UPPER_GREEN_ARROW = np.array([95, 255, 220]) #70,255,255
 
-##*COLORS FOR CONTOURS
+#*------------------------
+###* COLORS FOR CONTOURS
+#*------------------------
 CIRCLE_COLOR = (255, 255, 0)
 CIRCLE_BORDER = 5
 RECT_COLOR= (128, 0, 128)
@@ -77,21 +69,29 @@ COLORS_TEXTS = {
 	'blue': (255, 0, 0),
 	'black': (0, 0, 0),
 	}
-####*FILTERS
+#*------------------------
+###*FILTERS
+#*------------------------
 GAUSS_KERNEL =  (5,5)
 MEDIAN_BLUR_KERNEL = 5
 KERNEL_MORPH = np.ones((3, 3), np.uint8)
 
+#*------------------------
 ###*TEXT
 FONT = cv2.FONT_HERSHEY_PLAIN
+#*------------------------
 
+#*------------------------
 ###*FOR DETECTION
+#*------------------------
 GRIPPER_COLOR = 'black'
 NOISY_CONTOUR_AREA = 120 #minimum area of the contour to be considered
 PIXEL_ANGLE = 0.062 #angle in degrees that represents a pixel movement #0.0605
 CENTER_X_IMAGE = int(CAMERA_MAIN_RESOLUTION[0]//2)
 
-
+#*------------------------
+###* FOR DEPTH ESTIMATION
+#*------------------------
 DISTANCE_RANGES = {
     'red': {
         'low_ar': [
@@ -152,10 +152,12 @@ DISTANCE_RANGES = {
     }
 }
 
-#HOMOGRAPHY
-
-HOMOGRAPHY_MATRIX = np.array([[ 2.37628909e+01,  8.41065180e+01, -1.17410009e+04],
- [-1.13422271e+01,  4.32666455e+02, -2.74226013e+04],
- [-1.06213304e-02,  2.48212005e-01,  1.00000000e+00]])
+#*------------------------
+###*HOMOGRAPHY
+#*------------------------
+HOMOGRAPHY_MATRIX = np.array([
+    [ 2.37628909e+01,  8.41065180e+01, -1.17410009e+04],
+    [-1.13422271e+01,  4.32666455e+02, -2.74226013e+04],
+    [-1.06213304e-02,  2.48212005e-01,  1.00000000e+00]])
 
 HOMOGRAPHY_SIZE = (720,1600)

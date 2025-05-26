@@ -5,25 +5,34 @@ from constants_pi import ENCODER_LEFT,ENCODER_RIGHT
 from utilities_sensors import OFFSET_YAW, read_imu_yaw_angle,normalize_angle,distance_sonar
 from utilities_motors import turn_off_motors, motor_pwm_setup
 
+#*------------------------
+###* DEFAULTS FOR ACTIONS AND USE OF ENCODER
+#*------------------------
 DEFAULT_ADVANCE_DISTANCE = 20.42  # cm
 DEFAULT_CLOSE_DISTANCE = 6.0  # cm
 STEPS = 20 #steps equivalent to one revolution of the wheel
 MIN_RESOLUTION_LIN = DEFAULT_ADVANCE_DISTANCE / STEPS #cm aprox watch means advance 1 step of encoder
 MIN_RESOLUTION_ROT = 4.5 #degrees aprox watch means rotate 1 step of encoder
-
-K_linear = 1.25
-K_ROT_IMU = 1.15
-K_D_ROT_IMU = 0.35#1.175
-ERROR_STEPS = 1
-
-
-PWM_LINEAR_SLOW = 40
-PWM_LINEAR_FAST = 55 
-PWM_ROT_MIN = 55
-PWM_ROT_MIN2 = 70
-
 UNITARY_VECTOR_X = [1,0] #the angle is always respect to the x axis
 
+#*------------------------
+###*CONTROL OF PD GAINS
+#*------------------------
+K_linear = 1.25
+K_ROT_IMU = 1.15
+K_D_ROT_IMU = 0.35
+ERROR_STEPS = 1
+
+#*------------------------
+###*DUTY CYCLE FOR SATURATION
+#*------------------------
+PWM_LINEAR_SLOW = 40
+PWM_LINEAR_FAST = 55
+PWM_ROT_MIN = 55 #Below 55 it could potentially not move
+PWM_ROT_MIN2 = 70
+
+
+#*Crucial for recording position and orientation
 def transformation_robot_to_world(angle, position):
 	pos_x, pos_y = position
 	angle_rad = np.radians(angle)
@@ -35,20 +44,12 @@ def transformation_robot_to_world(angle, position):
 		[0, 0, 1]
 	])
 
-
-
 def get_angle(vector_a):
 	angle_dot_product = np.arccos(np.dot(vector_a, UNITARY_VECTOR_X)/(np.linalg.norm(vector_a)))
 	angle = normalize_angle(np.degrees(angle_dot_product))
 	return angle
 
 def get_vector(node_a, node_b):
-	"""
-	This function returns the vector from node_a to node_b.
-
-	Args:
-		node_a (tuple): The first node.
-	"""
 	return (node_b[0] - node_a[0], node_b[1] - node_a[1])
 
 def control_translation(action, reference, history, move_fast = False):
@@ -98,7 +99,6 @@ def control_translation(action, reference, history, move_fast = False):
 		#transform to the world system the coordinates of the robot
 		advance_world = transf_matrix @ np.array([course_advancement, 0, 1])
 		#print('advance world:', advance_world)
-		#record position considered
 		pos_to_record = (*advance_world[0:2], angle)
 		if pos_to_record != history[-1]:
 			history.append(pos_to_record)
@@ -111,9 +111,8 @@ def control_translation(action, reference, history, move_fast = False):
 
 def control_rotation_imu(reference, sensor_imu, history, rotate_fast = False):
 	last_position = history[-1] if history else (0.0, 0.0, 0)
-	# _, _, angle = last_position
 	min_duty_cycle = PWM_ROT_MIN2 if rotate_fast else PWM_ROT_MIN
-	error_tolerance = 4 if rotate_fast else 0.6
+	error_tolerance = 4 if rotate_fast else 1.5
 	error_reference = np.inf
 	prev_time = None
 	derivative = 0
@@ -183,5 +182,5 @@ def control_rotation_imu(reference, sensor_imu, history, rotate_fast = False):
 	history.append((*last_position[0:2], new_rotation))
 	return history
 
-#TODO: Function that if no blocks are found turn every x degrees until blocks of the color assigned are found
+
 

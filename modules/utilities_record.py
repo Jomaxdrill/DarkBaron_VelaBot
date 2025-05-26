@@ -1,5 +1,3 @@
-#import os
-from datetime import datetime
 import smtplib
 #from smtplib import SMTPException
 #import email
@@ -7,18 +5,18 @@ import time
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from utilities_camera import take_image
-#command = 'raspistill -w 1280 -h 720 -vf -hf -o ' + pic_time + '.jpg'
-#os.system(command)
-#setup initialize camera
-# Email information
+
+#*------------------------
+###* EMAIL INFORMATION
+#*------------------------
 smtpUser = 'mailtestdarkbaronvelabot@gmail.com'
 smtpPass = 'fvvelfyvyihcifss'
-# Destination email information
-#* 'ENPM809TS19@gmail.com' toAdd element
+#* 'ENPM809TS19@gmail.com' append in toAdd
 toAdd = ['jcrespo@umd.edu']
 
 
@@ -67,16 +65,20 @@ def save_file_info(data):
 		for record in data:
 			outstring = str(record) + '\n'
 			file_data_process.write(outstring)
-   
+
 def plot_trajectories(file_data):
-	with open(f'{file_data}.txt','a') as file_data_process:
+	with open(f'{file_data}.txt','r') as file_data_process:
 		data = file_data_process.readlines()
 		file_data_process.close()
-	coords_raw = [ raw_line.strip('()').replace('\n','') for raw_line in data]
+	coords_raw = [ raw_line.strip('()\n') for raw_line in data]
 	state_robot = []
 	for state_raw in coords_raw:
-		pos_x, pos_y, angle = state_raw.split(',')
-		state_robot((float(pos_x),float(pos_y), float(angle)))
+		values = [val.strip() for val in state_raw.split(',')]
+		if len(values) != 3:
+			print(f"Skipping invalid line: {state_raw}")
+			continue
+		pos_x, pos_y, angle = map(float, values)
+		state_robot.append((pos_x, pos_y, angle))
 	state_robot = np.array(state_robot)
 	print('State trajectories has dimensions', np.size(state_robot))
 	#plot and save
@@ -87,9 +89,6 @@ def plot_trajectories(file_data):
 	plt.ylabel('Y Coordinate [cm]')
 	plt.grid(True)
 	plt.legend()
-	# Save the plot
 	plt.savefig('points_plot.png', dpi=300, bbox_inches='tight')
 	plt.close()
 
-     
-		
