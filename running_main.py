@@ -1,4 +1,7 @@
 import traceback
+# import os
+# import sys
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'modules')))
 from modules.basic_init import *
 from modules.utilities_camera import *
 from modules.utilities_motors import *

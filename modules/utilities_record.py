@@ -9,7 +9,7 @@ from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
-from utilities_camera import take_image
+from .utilities_camera import take_image
 
 #*------------------------
 ###* EMAIL INFORMATION

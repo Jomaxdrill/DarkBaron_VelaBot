@@ -1,10 +1,10 @@
-from control_actions import *
-from utilities_motors import *
-from utilities_camera import *
-from utilities_record import *
-from utilities_perception import *
-from utilities_sensors import *
-from basic_init import *
+from .control_actions import *
+from .utilities_motors import *
+from .utilities_camera import *
+from .utilities_record import *
+from .utilities_perception import *
+from .utilities_sensors import *
+from .basic_init import *
 
 #*------------------------
 ###*PARAMS FOR THE MAP
@@ -49,7 +49,7 @@ def first_planner(block_sequence, record_pos, goal_coordinates, camera, imu_sens
 			if not reached_block:
 				print(f'PLANNER: Block {block_sequence[-1]} objective not found, search again')
 				continue
-			# getting_block = check_secured_block(camera, block_sequence[-1], record_pos)
+			# getting_block = check_secured_block(camera, servo, block_sequence[-1], record_pos)
 			# if not getting_block:
 			# 	print(f'PLANNER: Block {block_sequence[-1]} objective not found, search again')
 			# 	continue
@@ -152,7 +152,7 @@ def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos, goal_co
 			print('Had to avoid hitting wall. Search again')
 			return False
 		print('Checking blocks obstacles')
-		#avoid_other_blocks(record_pos, goal_coord, camera_pi, look_block = color_block)
+		#avoid_other_blocks(record_pos, goal_coord, camera_pi,imu_sensor, look_block = color_block)
 		print('Finished avoiding obstacles search again')
 		#for every advancement align with the block as much as possible
 		aligned = align_with_block(camera_pi,imu_sensor,record_pos,color_block)
@@ -185,7 +185,7 @@ def move_to_block(camera_pi, servo, imu_sensor, color_block, record_pos, goal_co
 	return True
 
 #*Check by ungrasp and grap again if a block is still there
-def check_secured_block(camera_pi, color_block, record_pos):
+def check_secured_block(camera_pi,servo, color_block, record_pos):
 	image = take_image(camera_pi)
 	block_caught = check_block_gripper(image, color_block)
 	#if i can confirm at first try it was caught open gripper and close again 3 times at least
@@ -254,7 +254,7 @@ def risky_blocks(camera_pi, look_block=False):
 	return risk_collision, closest_dist
 
 #*A logic for avoid potential blocks in the way by turning to advance in the direction with less obstacles
-def avoid_other_blocks(record_pos, goal_coord, camera_pi, look_block = False):
+def avoid_other_blocks(record_pos, goal_coord, camera_pi,imu_sensor, look_block = False):
 	results_risky_blocks = risky_blocks(camera_pi, look_block)
 	if not results_risky_blocks:
 		print('Continue the path')

@@ -1,7 +1,8 @@
-from constants_pi import *
+from .constants_pi import *
 import RPi.GPIO as gpio
 import serial
 import time
+
 
 def init_gpio():
 	print('init gpio raspberry pi 4')

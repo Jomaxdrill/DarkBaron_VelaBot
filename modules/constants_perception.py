@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from utilities_camera import CAMERA_MAIN_RESOLUTION
+from .utilities_camera import CAMERA_MAIN_RESOLUTION
 
 #*------------------------
 ###*COLOR RANGES

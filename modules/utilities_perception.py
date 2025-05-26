@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from constants_perception import *
+from .constants_perception import *
 
 #*------------------------
 ###* FILTERING

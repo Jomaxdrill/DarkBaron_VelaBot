@@ -1,4 +1,4 @@
-from constants_pi import *
+from .constants_pi import *
 import RPi.GPIO as gpio
 import time
 import numpy as np
@@ -54,11 +54,13 @@ def distance_sonar():
 	#*by doing this the measurement is not stuck although the exactitude is compromised a lot
 	timeout = 0
 	#wait for ECHO to go high and low
+	pulse_start = time.time()
 	while gpio.input(ECHO) == 0 and timeout <=TIMEOUT_HOLD:
 		current_time = time.time()
 		timeout = current_time - start_time
 		pulse_start = time.time()
 	timeout = 0
+	pulse_end = time.time()
 	while gpio.input(ECHO) == 1 and timeout <=TIMEOUT_HOLD:
 		current_time = time.time()
 		timeout = current_time - start_time

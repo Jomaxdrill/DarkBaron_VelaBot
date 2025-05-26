@@ -1,9 +1,9 @@
 import RPi.GPIO as gpio
 import numpy as np
 import time
-from constants_pi import ENCODER_LEFT,ENCODER_RIGHT
-from utilities_sensors import OFFSET_YAW, read_imu_yaw_angle,normalize_angle,distance_sonar
-from utilities_motors import turn_off_motors, motor_pwm_setup
+from .constants_pi import ENCODER_LEFT,ENCODER_RIGHT
+from .utilities_sensors import OFFSET_YAW, read_imu_yaw_angle,normalize_angle,distance_sonar
+from .utilities_motors import turn_off_motors, motor_pwm_setup
 
 #*------------------------
 ###* DEFAULTS FOR ACTIONS AND USE OF ENCODER
